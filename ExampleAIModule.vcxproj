@@ -122,7 +122,7 @@
     <ClCompile Include="Source\GameCommander.cpp" />
     <ClCompile Include="Source\InformationManager.cpp" />
     <ClCompile Include="Source\insanitybotModule.cpp" />
-    <ClCompile Include="Source\UnitConstruction.cpp" />
+    <ClCompile Include="Source\BuildingPlacer.cpp" />
     <ClCompile Include="Source\UnitManager.cpp" />
     <ClCompile Include="Source\WorkerManager.cpp" />
   </ItemGroup>
@@ -151,7 +151,7 @@
     <ClInclude Include="Source\GameCommander.h" />
     <ClInclude Include="Source\InformationManager.h" />
     <ClInclude Include="Source\insanitybotModule.h" />
-    <ClInclude Include="Source\UnitConstruction.h" />
+    <ClInclude Include="Source\BuildingPlacer.h" />
     <ClInclude Include="Source\UnitManager.h" />
     <ClInclude Include="Source\WorkerManager.h" />
   </ItemGroup>

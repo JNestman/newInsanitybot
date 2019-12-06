@@ -76,11 +76,11 @@
     <ClCompile Include="Source\CreationManager.cpp">
       <Filter>Creation</Filter>
     </ClCompile>
-    <ClCompile Include="Source\UnitConstruction.cpp">
-      <Filter>Creation\Building</Filter>
-    </ClCompile>
     <ClCompile Include="Source\BuildOrder.cpp">
       <Filter>Information\Build Order</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BuildingPlacer.cpp">
+      <Filter>Creation\Building</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -159,11 +159,11 @@
     <ClInclude Include="Source\CreationManager.h">
       <Filter>Creation</Filter>
     </ClInclude>
-    <ClInclude Include="Source\UnitConstruction.h">
-      <Filter>Creation\Building</Filter>
-    </ClInclude>
     <ClInclude Include="Source\BuildOrder.h">
       <Filter>Information\Build Order</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BuildingPlacer.h">
+      <Filter>Creation\Building</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
