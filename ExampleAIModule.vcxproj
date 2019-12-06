@@ -1,0 +1,166 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{2E63AE74-758A-4607-9DE4-D28E814A6E13}</ProjectGuid>
+    <RootNamespace>ExampleAIModule</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
+    <ProjectName>insanitybot</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <PlatformToolset>v141</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v141</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</LinkIncremental>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <IntDir>$(SolutionDir)$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>../include;$(BWAPI4_DIR)/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>NOMINMAX;WIN32;_WIN32_WINNT=0x0501;NTDDI_VERSION=0x05010300;_DEBUG;_WINDOWS;_USRDLL;EXAMPLEAIMODULE_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MinimalRebuild>false</MinimalRebuild>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalOptions>/Zc:threadSafeInit- %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <PreLinkEvent />
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Windows</SubSystem>
+      <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
+      <TargetMachine>MachineX86</TargetMachine>
+      <AdditionalDependencies>$(BWAPI4_DIR)/Release/BWAPILIB.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <AdditionalIncludeDirectories>../include;$(BWAPI4_DIR)/include;../source;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>NOMINMAX;WIN32;_WIN32_WINNT=0x0501;NTDDI_VERSION=0x05010300;NDEBUG;_WINDOWS;_USRDLL;EXAMPLEAIMODULE_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalOptions>/Zc:threadSafeInit- %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <PreLinkEvent />
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Windows</SubSystem>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
+      <TargetMachine>MachineX86</TargetMachine>
+      <AdditionalDependencies>$(BWAPI4_DIR)/Release/BWAPILIB.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Source\BuildOrder.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\EasyBMP_1.06\EasyBMP.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\src\area.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\src\base.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\src\bwapiExt.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\src\bwem.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\src\cp.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\src\examples.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\src\exampleWall.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\src\graph.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\src\gridMap.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\src\map.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\src\mapDrawer.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\src\mapImpl.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\src\mapPrinter.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\src\neutral.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\src\tiles.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\src\utils.cpp" />
+    <ClCompile Include="Source\BWEM1.4.1\src\winutils.cpp" />
+    <ClCompile Include="Source\CreationManager.cpp" />
+    <ClCompile Include="Source\Dll.cpp" />
+    <ClCompile Include="Source\GameCommander.cpp" />
+    <ClCompile Include="Source\InformationManager.cpp" />
+    <ClCompile Include="Source\insanitybotModule.cpp" />
+    <ClCompile Include="Source\UnitConstruction.cpp" />
+    <ClCompile Include="Source\UnitManager.cpp" />
+    <ClCompile Include="Source\WorkerManager.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Source\BuildOrder.h" />
+    <ClInclude Include="Source\BWEM1.4.1\EasyBMP_1.06\EasyBMP.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\area.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\base.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\bwapiExt.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\bwem.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\cp.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\defs.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\examples.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\exampleWall.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\graph.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\gridMap.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\map.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\mapDrawer.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\mapImpl.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\mapPrinter.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\neutral.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\tiles.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\utils.h" />
+    <ClInclude Include="Source\BWEM1.4.1\src\winutils.h" />
+    <ClInclude Include="Source\CreationManager.h" />
+    <ClInclude Include="Source\GameCommander.h" />
+    <ClInclude Include="Source\InformationManager.h" />
+    <ClInclude Include="Source\insanitybotModule.h" />
+    <ClInclude Include="Source\UnitConstruction.h" />
+    <ClInclude Include="Source\UnitManager.h" />
+    <ClInclude Include="Source\WorkerManager.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BWAPILIB\BWAPILIB.vcxproj">
+      <Project>{843656fd-9bfd-47bf-8460-7bfe9710ea2c}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

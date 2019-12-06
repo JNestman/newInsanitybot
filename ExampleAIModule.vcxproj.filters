@@ -1,0 +1,204 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="Source\BWEM1.4.1\src\area.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BWEM1.4.1\src\base.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BWEM1.4.1\src\bwapiExt.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BWEM1.4.1\src\bwem.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BWEM1.4.1\src\cp.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BWEM1.4.1\src\examples.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BWEM1.4.1\src\exampleWall.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BWEM1.4.1\src\graph.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BWEM1.4.1\src\gridMap.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BWEM1.4.1\src\map.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BWEM1.4.1\src\mapDrawer.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BWEM1.4.1\src\mapImpl.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BWEM1.4.1\src\mapPrinter.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BWEM1.4.1\src\neutral.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BWEM1.4.1\src\tiles.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BWEM1.4.1\src\utils.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BWEM1.4.1\src\winutils.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BWEM1.4.1\EasyBMP_1.06\EasyBMP.cpp">
+      <Filter>BWEM</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Dll.cpp">
+      <Filter>Module</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\insanitybotModule.cpp">
+      <Filter>Module</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\GameCommander.cpp">
+      <Filter>Commander</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\UnitManager.cpp">
+      <Filter>Units</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\WorkerManager.cpp">
+      <Filter>Worker</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\InformationManager.cpp">
+      <Filter>Information</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\CreationManager.cpp">
+      <Filter>Creation</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\UnitConstruction.cpp">
+      <Filter>Creation\Building</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\BuildOrder.cpp">
+      <Filter>Information\Build Order</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Source\BWEM1.4.1\src\area.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\src\base.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\src\bwapiExt.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\src\bwem.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\src\cp.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\src\defs.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\src\examples.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\src\exampleWall.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\src\graph.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\src\gridMap.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\src\map.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\src\mapDrawer.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\src\mapImpl.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\src\mapPrinter.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\src\neutral.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\src\tiles.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\src\utils.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\src\winutils.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BWEM1.4.1\EasyBMP_1.06\EasyBMP.h">
+      <Filter>BWEM</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\insanitybotModule.h">
+      <Filter>Module</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\GameCommander.h">
+      <Filter>Commander</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\UnitManager.h">
+      <Filter>Units</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\WorkerManager.h">
+      <Filter>Worker</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\InformationManager.h">
+      <Filter>Information</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\CreationManager.h">
+      <Filter>Creation</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\UnitConstruction.h">
+      <Filter>Creation\Building</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\BuildOrder.h">
+      <Filter>Information\Build Order</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="BWEM">
+      <UniqueIdentifier>{8f4a3c62-9329-4459-94ed-27d42770b8ef}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Module">
+      <UniqueIdentifier>{a2832e3f-dfdf-40b3-972e-375b1ec399f1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Commander">
+      <UniqueIdentifier>{6cd1bd88-b25e-4233-8834-053e6ab4d717}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Units">
+      <UniqueIdentifier>{c6b0adeb-dec1-4970-be56-6728b9e46848}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Worker">
+      <UniqueIdentifier>{e5ee4dfe-6cb7-427d-8fbd-0efaebe94206}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Information">
+      <UniqueIdentifier>{97891403-12db-4fff-b9f8-2b60ab5daba8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Units\Squad">
+      <UniqueIdentifier>{15adcabe-d908-421d-92ec-9578360f8211}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Units\MicroManager">
+      <UniqueIdentifier>{a9d2fdaf-e296-42cd-a503-693a2e4f7a52}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Creation">
+      <UniqueIdentifier>{974613c2-8677-4ac0-840f-11577be93a3d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Creation\Building">
+      <UniqueIdentifier>{4d6502b2-0341-46da-8585-2a92b8293817}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Information\Build Order">
+      <UniqueIdentifier>{a402c0ba-d7fb-438e-8ca8-a9d66e65499a}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
