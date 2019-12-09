@@ -94,10 +94,10 @@ void WorkerManager::construct(std::list<BWAPI::Unit> _workers, BWAPI::UnitType s
 		Unit builder = worker->getClosestUnit(GetType == structure.whatBuilds().first &&
 			(IsIdle || IsGatheringMinerals) &&
 			IsOwned);
-		if (builder && !found)
+		if (builder)
 		{
 			builder->build(structure, targetLocation);
-			found = true;
+			break;
 		}
 	}
 }
