@@ -81,8 +81,9 @@ void WorkerManager::update(std::list<BWAPI::Unit> _workers, int numProducers)
 	}
 }
 
-void WorkerManager::construct(std::list<BWAPI::Unit> _workers, BWAPI::UnitType structure)
+void WorkerManager::construct(std::list<BWAPI::Unit> _workers, BWAPI::UnitType structure, BWAPI::TilePosition targetLocation)
 {
+	bool found = false;
 	for (auto & worker : _workers)
 	{
 		if (worker->getType() != BWAPI::UnitTypes::Terran_SCV)
@@ -90,9 +91,13 @@ void WorkerManager::construct(std::list<BWAPI::Unit> _workers, BWAPI::UnitType s
 			continue;
 		}
 
-		if (worker->isIdle() || worker->isGatheringMinerals())
+		Unit builder = worker->getClosestUnit(GetType == structure.whatBuilds().first &&
+			(IsIdle || IsGatheringMinerals) &&
+			IsOwned);
+		if (builder && !found)
 		{
-			worker->build(structure, worker->getTilePosition());
+			builder->build(structure, targetLocation);
+			found = true;
 		}
 	}
 }

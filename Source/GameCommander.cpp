@@ -9,7 +9,8 @@ insanitybot::GameCommander::GameCommander()
 
 void GameCommander::initialize()
 {
-	
+	_informationManager.initialize();
+	_creationManager.initialize();
 }
 
 void GameCommander::update()

@@ -73,7 +73,7 @@ void insanitybotModule::onStart()
 
 			Broodwar->setLocalSpeed(10);
 
-			InformationManager::Instance().initialize();
+			GameCommander::Instance().initialize();
 		}
 	}
 	catch (const std::exception & e)

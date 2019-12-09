@@ -11,7 +11,7 @@ namespace insanitybot
 	{
 	public:
 		void update(std::list<BWAPI::Unit> _workers, int numProducers);
-		void construct(std::list<BWAPI::Unit> _workers, BWAPI::UnitType structure);
+		void construct(std::list<BWAPI::Unit> _workers, BWAPI::UnitType structure, BWAPI::TilePosition targetLocation);
 
 		static WorkerManager & Instance();
 	};

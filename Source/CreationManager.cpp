@@ -7,6 +7,11 @@ insanitybot::CreationManager::CreationManager()
 {
 }
 
+void CreationManager::initialize()
+{
+	_buildingPlacer.initialize();
+}
+
 void CreationManager::update(std::list<BWAPI::Unit> _producers, std::list<BWAPI::Unit> _commandCenters, std::list<BWAPI::Unit> _workers, int numWorkersWanted, std::list<BWAPI::UnitType>& queue)
 {
 	for (auto & center : _commandCenters)
@@ -22,7 +27,7 @@ void CreationManager::update(std::list<BWAPI::Unit> _producers, std::list<BWAPI:
 		{
 			if (unit.isBuilding() && _self->minerals() >= unit.mineralPrice() && _self->gas() >= unit.gasPrice())
 			{
-				WorkerManager::Instance().construct(_workers, unit);
+				WorkerManager::Instance().construct(_workers, unit, _buildingPlacer.getDesiredLocation(unit));
 				queue.remove(unit);
 			}
 			else

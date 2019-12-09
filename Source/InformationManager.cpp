@@ -25,6 +25,7 @@ void InformationManager::initialize()
 		{
 			//BWAPI::Broodwar << "Main Position at: " << u->getPosition() << std::endl;
 			main = u->getPosition();
+			_mainPosition = u->getTilePosition();
 		}
 	}
 	for (const BWEM::Area & area : theMap.Areas())

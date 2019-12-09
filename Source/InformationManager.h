@@ -11,6 +11,7 @@ namespace insanitybot
 		BWAPI::Player										_enemy;
 		BWEM::Base											*_home;
 		std::map<BWAPI::Position, BWEM::Base *>				_otherBases;
+		BWAPI::TilePosition									_mainPosition;
 
 		std::list<BWAPI::Unit>								_commandCenters;
 		std::list<BWAPI::Unit>								_workers;
@@ -44,6 +45,8 @@ namespace insanitybot
 
 		int getReservedMinerals()					{ return _reservedMinerals; }
 		int getReservedGas()						{ return _reservedGas; }
+
+		BWAPI::TilePosition getMainPosition()		{ return _mainPosition; }
 
 		//Setters
 		void setReservedMinerals(int _reserve)		{ _reservedMinerals = _reserve; }
