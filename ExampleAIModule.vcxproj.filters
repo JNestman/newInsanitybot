@@ -76,11 +76,11 @@
     <ClCompile Include="Source\CreationManager.cpp">
       <Filter>Creation</Filter>
     </ClCompile>
-    <ClCompile Include="Source\BuildOrder.cpp">
-      <Filter>Information\Build Order</Filter>
-    </ClCompile>
     <ClCompile Include="Source\BuildingPlacer.cpp">
       <Filter>Creation\Building</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Squad.cpp">
+      <Filter>Units\Squad</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -159,11 +159,11 @@
     <ClInclude Include="Source\CreationManager.h">
       <Filter>Creation</Filter>
     </ClInclude>
-    <ClInclude Include="Source\BuildOrder.h">
-      <Filter>Information\Build Order</Filter>
-    </ClInclude>
     <ClInclude Include="Source\BuildingPlacer.h">
       <Filter>Creation\Building</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Squad.h">
+      <Filter>Units\Squad</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -196,9 +196,6 @@
     </Filter>
     <Filter Include="Creation\Building">
       <UniqueIdentifier>{4d6502b2-0341-46da-8585-2a92b8293817}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Information\Build Order">
-      <UniqueIdentifier>{a402c0ba-d7fb-438e-8ca8-a9d66e65499a}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

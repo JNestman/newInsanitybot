@@ -18,6 +18,14 @@ namespace insanitybot
 		void initialize();
 		void update();
 
+		void onUnitShow(BWAPI::Unit unit);
+		void onUnitCreate(BWAPI::Unit unit);
+		void onUnitDestroy(BWAPI::Unit unit);
+		void onUnitRenegade(BWAPI::Unit unit);
+		void onUnitComplete(BWAPI::Unit unit);
+
+		void infoText();
+
 		static GameCommander & Instance();
 	};
 }

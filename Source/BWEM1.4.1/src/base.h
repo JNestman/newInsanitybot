@@ -92,6 +92,32 @@ public:
 	void							SetStartingLocation(const BWAPI::TilePosition & actualLocation);
 	void							OnMineralDestroyed(const Mineral * pMineral);
 
+	// Stuff specific for insanitybot
+	int numWorkersWantedHere();
+	int getNumMineralWorkers();
+	int getNumGasWorkers();
+	int getRemainingMinerals();
+	BWAPI::Unit getBaseRefinery() { return baseRefinery; }
+	BWAPI::Position getRefineryPos() { return baseRefinery->getPosition(); }
+	void checkAssignment(BWAPI::Unit, std::map<BWAPI::Position, BWEM::Base *>&, BWEM::Base* &);
+	bool miningAssignmentExists(BWAPI::Unit);
+	void removeAssignment(BWAPI::Unit);
+	void updateHishestNumWorkersOnPatch();
+	Mineral * getDestroyedMineral(BWAPI::Unit);
+	void onUnitDestroy(BWAPI::Unit);
+	void clearAssignmentList();
+	void cleanUpZombieTasks();
+
+	void setBaseRefinery(BWAPI::Unit refinery);
+	void setbaseCommandCenter(BWAPI::Unit commandCenter);
+	bool baseHasGeyser() { return !m_Geysers.empty(); }
+	bool baseHasRefinery() { return baseRefinery; }
+	bool isGasWorker(BWAPI::Unit);
+
+	int numTurretsHere() { return turrets.size(); };
+	void addTurrets(BWAPI::Unit additionalTurret) { turrets.insert(additionalTurret); };
+	bool onTurretDestroy(BWAPI::Unit destroyed);
+
 private:
 	Map *							GetMap() const				{ return m_pMap; }
 	Map *							GetMap()					{ return m_pMap; }
@@ -104,6 +130,23 @@ private:
 	std::vector<Geyser *>			m_Geysers;
 	std::vector<Mineral *>			m_BlockingMinerals;
 	bool							m_starting = false;
+
+	// Stuff specific for insanitybot
+	int highestNumWorkersOnPatch = 1;
+	bool hasRefinery = false;
+
+	BWAPI::Unitset turrets;
+
+	// maps for the resource patches and number of workers assigned to each one
+	std::map<Mineral *, BWAPI::Unitset> mineral_Assignments;
+	std::map<BWAPI::Unit, BWAPI::Unitset> refinery_Assignments;
+	std::map<Mineral *, BWAPI::Unit> mineralUnit;
+
+	void assignMineralWorkers(BWAPI::Unit);
+	void assignGasWorkers(BWAPI::Unit);
+	BWAPI::Unit baseRefinery;
+	BWAPI::Unit baseCommandCenter;
+
 };
 
 

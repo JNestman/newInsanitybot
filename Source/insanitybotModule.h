@@ -1,10 +1,12 @@
 #include <BWAPI.h>
+#include "GameCommander.h"
 
 // Remember not to use "Broodwar" in any global class constructor!
 namespace insanitybot
 {
 	class insanitybotModule : public BWAPI::AIModule
 	{
+		GameCommander commander;
 	public:
 		// Virtual functions for callbacks, leave these as they are.
 		virtual void onStart();
