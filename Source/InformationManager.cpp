@@ -428,7 +428,7 @@ void InformationManager::update()
 
 
 	// Attempted fix for canceled zerg structures not clearing tracked enemy bases
-	for (auto base : _enemyBases)
+	for (auto & base : _enemyBases)
 	{
 		if (BWAPI::Broodwar->isVisible(base.second->Location()))
 		{
@@ -617,12 +617,12 @@ void insanitybot::InformationManager::updateBuildOrder()
 				}
 
 				// Island expansions
-				if (_ownedBases.size() >= 2 && shouldExpand() && getNumFinishedUnit(BWAPI::UnitTypes::Terran_Dropship) && _islandBases.size() &&
+				/*if (_ownedBases.size() >= 2 && shouldExpand() && getNumFinishedUnit(BWAPI::UnitTypes::Terran_Dropship) && _islandBases.size() &&
 					!_islandExpand && _islandBuilder == NULL && !_ownedIslandBases.size())
 				{
 					setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Command_Center.mineralPrice());
 					_islandExpand = true;
-				}
+				}*/
 				// all other expansions
 				else if (_ownedBases.size() >= 2 && shouldExpand() && getReservedMinerals() < 400)
 				{
@@ -746,12 +746,12 @@ void insanitybot::InformationManager::updateBuildOrder()
 					setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Command_Center.mineralPrice());
 				}
 				// Island expansions
-				else if (_ownedBases.size() >= 2 && shouldExpand() && getNumFinishedUnit(BWAPI::UnitTypes::Terran_Dropship) && _islandBases.size() &&
+				/*else if (_ownedBases.size() >= 2 && shouldExpand() && getNumFinishedUnit(BWAPI::UnitTypes::Terran_Dropship) && _islandBases.size() &&
 					!_islandExpand && _islandBuilder == NULL && !_ownedIslandBases.size())
 				{
 					setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Command_Center.mineralPrice());
 					_islandExpand = true;
-				}
+				}*/
 				else if (_ownedBases.size() >= 2 && shouldExpand() && (_self->minerals() > 800 || BWAPI::Broodwar->getFrameCount() > 20000))
 				{
 					_queue.push_back(BWAPI::UnitTypes::Terran_Command_Center);
@@ -1031,7 +1031,7 @@ void insanitybot::InformationManager::onUnitCreate(BWAPI::Unit unit)
 	{
 		for (auto & base : _ownedBases)
 		{
-			if (unit->getDistance(base.first) < 400)
+			if (unit->getDistance(base.first) < 200)
 			{
 				base.second->addTurrets(unit);
 				break;
@@ -1040,7 +1040,7 @@ void insanitybot::InformationManager::onUnitCreate(BWAPI::Unit unit)
 
 		for (auto & base : _ownedIslandBases)
 		{
-			if (unit->getDistance(base.first) < 400)
+			if (unit->getDistance(base.first) < 200)
 			{
 				base.second->addTurrets(unit);
 				break;
@@ -1050,28 +1050,28 @@ void insanitybot::InformationManager::onUnitCreate(BWAPI::Unit unit)
 	// Insert command center as new base being taken
 	else if (unit->getType().isResourceDepot() && unit->getPlayer() == _self)
 	{
-		for (auto & base : _otherBases)
+		for (std::map<BWAPI::Position, BWEM::Base *>::iterator & base = _otherBases.begin(); base != _otherBases.end(); base++)
 		{
-			if (closeEnough(unit->getPosition(), base.first))
+			if (closeEnough(unit->getPosition(), base->first))
 			{
 				_commandCenters.push_back(unit);
-				base.second->setbaseCommandCenter(unit);
-				_ownedBases.insert(std::pair<BWAPI::Position, BWEM::Base *>(base.first, base.second));
-				_otherBases.erase(base.first);
+				base->second->setbaseCommandCenter(unit);
+				_ownedBases.insert(std::pair<BWAPI::Position, BWEM::Base *>(base->first, base->second));
+				_otherBases.erase(base);
 				return;
 			}
 		}
 
-		for (auto & base : _islandBases)
+		for (std::map<BWAPI::Position, BWEM::Base *>::iterator & base = _islandBases.begin(); base != _islandBases.end(); base++)
 		{
-			if (closeEnough(unit->getPosition(), base.first))
+			if (closeEnough(unit->getPosition(), base->first))
 			{
-				_islandWorkers.insert(std::pair<BWAPI::Unit, BWEM::Base *>(unit->getBuildUnit(), base.second));
+				_islandWorkers.insert(std::pair<BWAPI::Unit, BWEM::Base *>(unit->getBuildUnit(), base->second));
 				_islandBuilder = NULL;
 				_islandCenters.push_back(unit);
-				base.second->setbaseCommandCenter(unit);
-				_ownedIslandBases.insert(std::pair<BWAPI::Position, BWEM::Base *>(base.first, base.second));
-				_islandBases.erase(base.first);
+				base->second->setbaseCommandCenter(unit);
+				_ownedIslandBases.insert(std::pair<BWAPI::Position, BWEM::Base *>(base->first, base->second));
+				_islandBases.erase(base);
 				return;
 			}
 		}
@@ -1146,7 +1146,7 @@ void insanitybot::InformationManager::onUnitDestroy(BWAPI::Unit unit)
 		{
 			_workers.erase(unit);
 
-			for (auto base : _ownedBases)
+			for (auto & base : _ownedBases)
 			{
 				base.second->onUnitDestroy(unit);
 			}
@@ -1324,13 +1324,13 @@ void insanitybot::InformationManager::onUnitDestroy(BWAPI::Unit unit)
 	{
 		if (unit->getPlayer() == _self)
 		{
-			for (auto base : _ownedBases)
+			for (std::map<BWAPI::Position, BWEM::Base *>::iterator & base = _ownedBases.begin(); base != _ownedBases.end(); base++)
 			{
-				if (closeEnough(unit->getPosition(), base.first))
+				if (closeEnough(unit->getPosition(), base->first))
 				{
 					for (auto & worker : _workers)
 					{
-						if (worker.second == base.second)
+						if (worker.second == base->second)
 						{
 							if (!_ownedBases.empty())
 							{
@@ -1369,21 +1369,21 @@ void insanitybot::InformationManager::onUnitDestroy(BWAPI::Unit unit)
 						}
 					}
 
-					base.second->setbaseCommandCenter(NULL);
-					base.second->clearAssignmentList();
-					_otherBases.insert(std::pair<BWAPI::Position, BWEM::Base *>(base.first, base.second));
-					_ownedBases.erase(base.first);
+					base->second->setbaseCommandCenter(NULL);
+					base->second->clearAssignmentList();
+					_otherBases.insert(std::pair<BWAPI::Position, BWEM::Base *>(base->first, base->second));
+					_ownedBases.erase(base->first);
 					return;
 				}
 			}
 
-			for (auto base : _ownedIslandBases)
+			for (std::map<BWAPI::Position, BWEM::Base *>::iterator & base = _ownedIslandBases.begin(); base != _ownedIslandBases.end(); base++)
 			{
-				if (closeEnough(unit->getPosition(), base.first))
+				if (closeEnough(unit->getPosition(), base->first))
 				{
 					for (auto & worker : _islandWorkers)
 					{
-						if (worker.second == base.second)
+						if (worker.second == base->second)
 						{
 							if (!_ownedIslandBases.empty())
 							{
@@ -1406,24 +1406,24 @@ void insanitybot::InformationManager::onUnitDestroy(BWAPI::Unit unit)
 						}
 					}
 
-					base.second->setbaseCommandCenter(NULL);
-					base.second->clearAssignmentList();
-					_islandBases.insert(std::pair<BWAPI::Position, BWEM::Base *>(base.first, base.second));
-					_ownedIslandBases.erase(base.first);
+					base->second->setbaseCommandCenter(NULL);
+					base->second->clearAssignmentList();
+					_islandBases.insert(std::pair<BWAPI::Position, BWEM::Base *>(base->first, base->second));
+					_ownedIslandBases.erase(base->first);
 					return;
 				}
 			}
 		}
 		else if (unit->getPlayer() == _enemy)
 		{
-			for (auto base : _enemyBases)
+			for (std::map<BWAPI::Position, BWEM::Base *>::iterator & base = _enemyBases.begin(); base != _enemyBases.end(); base++)
 			{
-				if (closeEnough(unit->getPosition(), base.first))
+				if (closeEnough(unit->getPosition(), base->first))
 				{
-					base.second->setbaseCommandCenter(NULL);
-					base.second->clearAssignmentList();
-					_otherBases.insert(std::pair<BWAPI::Position, BWEM::Base *>(base.first, base.second));
-					_enemyBases.erase(base.first);
+					base->second->setbaseCommandCenter(NULL);
+					base->second->clearAssignmentList();
+					_otherBases.insert(std::pair<BWAPI::Position, BWEM::Base *>(base->first, base->second));
+					_enemyBases.erase(base->first);
 					return;
 				}
 			}
@@ -1452,29 +1452,33 @@ void insanitybot::InformationManager::onUnitDestroy(BWAPI::Unit unit)
 		}
 
 		// ToDo: Clean this up. There should be an easier way to delete minerals from inside of individual bases
-		for (auto base : _ownedBases)
+		for (auto & base : _ownedBases)
 		{
-			base.second->OnMineralDestroyed(base.second->getDestroyedMineral(unit));
+			if (base.second->getDestroyedMineral(unit))
+				base.second->OnMineralDestroyed(base.second->getDestroyedMineral(unit));
 		}
 
-		for (auto base : _otherBases)
+		for (auto & base : _otherBases)
 		{
-			base.second->OnMineralDestroyed(base.second->getDestroyedMineral(unit));
+			if (base.second->getDestroyedMineral(unit))
+				base.second->OnMineralDestroyed(base.second->getDestroyedMineral(unit));
 		}
 
-		for (auto base : _islandBases)
+		for (auto & base : _islandBases)
 		{
-			base.second->OnMineralDestroyed(base.second->getDestroyedMineral(unit));
+			if (base.second->getDestroyedMineral(unit))
+				base.second->OnMineralDestroyed(base.second->getDestroyedMineral(unit));
 		}
 
-		for (auto base : _ownedIslandBases)
+		for (auto & base : _ownedIslandBases)
 		{
-			base.second->OnMineralDestroyed(base.second->getDestroyedMineral(unit));
+			if (base.second->getDestroyedMineral(unit))
+				base.second->OnMineralDestroyed(base.second->getDestroyedMineral(unit));
 		}
 	}
 	else if (unit->getType().isRefinery() && unit->getPlayer() == _self)
 	{
-		for (auto base : _ownedBases)
+		for (auto & base : _ownedBases)
 		{
 			if (base.second->Geysers().size() && abs(BWAPI::TilePosition(unit->getPosition()).x - base.second->Geysers().front()->TopLeft().x) <= 8 && abs(BWAPI::TilePosition(unit->getPosition()).y - base.second->Geysers().front()->TopLeft().y) <= 8)
 			{
@@ -1483,7 +1487,7 @@ void insanitybot::InformationManager::onUnitDestroy(BWAPI::Unit unit)
 			}
 		}
 		
-		for (auto base : _otherBases)
+		for (auto & base : _otherBases)
 		{
 			if (base.second->Geysers().size() && abs(BWAPI::TilePosition(unit->getPosition()).x - base.second->Geysers().front()->TopLeft().x) <= 8 && abs(BWAPI::TilePosition(unit->getPosition()).y - base.second->Geysers().front()->TopLeft().y) <= 8)
 			{
@@ -1492,7 +1496,7 @@ void insanitybot::InformationManager::onUnitDestroy(BWAPI::Unit unit)
 			}
 		}
 
-		for (auto base : _islandBases)
+		for (auto & base : _islandBases)
 		{
 			if (base.second->Geysers().size() && abs(BWAPI::TilePosition(unit->getPosition()).x - base.second->Geysers().front()->TopLeft().x) <= 8 && abs(BWAPI::TilePosition(unit->getPosition()).y - base.second->Geysers().front()->TopLeft().y) <= 8)
 			{
@@ -1501,7 +1505,7 @@ void insanitybot::InformationManager::onUnitDestroy(BWAPI::Unit unit)
 			}
 		}
 
-		for (auto base : _ownedIslandBases)
+		for (auto & base : _ownedIslandBases)
 		{
 			if (base.second->Geysers().size() && abs(BWAPI::TilePosition(unit->getPosition()).x - base.second->Geysers().front()->TopLeft().x) <= 8 && abs(BWAPI::TilePosition(unit->getPosition()).y - base.second->Geysers().front()->TopLeft().y) <= 8)
 			{
@@ -1512,7 +1516,7 @@ void insanitybot::InformationManager::onUnitDestroy(BWAPI::Unit unit)
 	}
 	else if (unit->getType() == BWAPI::UnitTypes::Terran_Bunker && unit->getPlayer() == _self)
 	{
-		for (auto bunker : _bunkers)
+		for (auto & bunker : _bunkers)
 		{
 			if (bunker == unit)
 			{

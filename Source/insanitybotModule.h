@@ -8,6 +8,7 @@ namespace insanitybot
 	{
 		GameCommander commander;
 	public:
+		insanitybotModule();
 		// Virtual functions for callbacks, leave these as they are.
 		virtual void onStart();
 		virtual void onEnd(bool isWinner);

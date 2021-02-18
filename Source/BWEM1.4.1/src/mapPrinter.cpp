@@ -91,7 +91,7 @@ void MapPrinter::Initialize(const Map * pMap)
 
 MapPrinter::~MapPrinter()
 {
-	if (canWrite(m_fileName)) m_pBMP->WriteToFile(m_fileName.c_str());
+	//if (canWrite(m_fileName)) m_pBMP->WriteToFile(m_fileName.c_str());
 
 //	Uncomment the 2 lines below to write one more copy of the bitmap, in the folder of the map used, with the same name.
 //	string twinFileName = bw->mapPathName().substr(0, bw->mapPathName().size()-3) + "bmp";

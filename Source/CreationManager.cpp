@@ -308,6 +308,12 @@ void CreationManager::update(InformationManager & _infoManager)
 	{
 		if (engibay->exists() && engibay->isIdle() && _infoManager.getStrategy() == "SKTerran")
 		{
+			if (engibay->isLifted())
+			{
+				engibay->move(BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y));
+				continue;
+			}
+
 			int infantryWeapons = _self->getUpgradeLevel(BWAPI::UpgradeTypes::Terran_Infantry_Weapons);
 			int infantryArmor = _self->getUpgradeLevel(BWAPI::UpgradeTypes::Terran_Infantry_Armor);
 
@@ -324,6 +330,10 @@ void CreationManager::update(InformationManager & _infoManager)
 				(infantryArmor == 0 || (infantryArmor > 0 && _infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Science_Facility))))
 			{
 				engibay->upgrade(BWAPI::UpgradeTypes::Terran_Infantry_Armor);
+			}
+			else if (infantryWeapons == 3 && infantryArmor == 3 && !engibay->isLifted())
+			{
+				engibay->lift();
 			}
 		}
 		else if (engibay->exists() && _infoManager.getStrategy() == "Mech")
@@ -379,6 +389,13 @@ void CreationManager::update(InformationManager & _infoManager)
 				_self->gas() - _infoManager.getReservedGas() >= BWAPI::TechTypes::Tank_Siege_Mode.gasPrice())
 			{
 				machineShop->research(BWAPI::TechTypes::Tank_Siege_Mode);
+			}
+			else if (_infoManager.getGoliaths().size() && 
+				!_self->getUpgradeLevel(BWAPI::UpgradeTypes::Charon_Boosters) && !_self->isUpgrading(BWAPI::UpgradeTypes::Charon_Boosters) &&
+				_self->minerals() - _infoManager.getReservedMinerals() >= BWAPI::UpgradeTypes::Charon_Boosters.mineralPrice() &&
+				_self->gas() - _infoManager.getReservedGas() >= BWAPI::UpgradeTypes::Charon_Boosters.gasPrice())
+			{
+				machineShop->upgrade(BWAPI::UpgradeTypes::Charon_Boosters);
 			}
 		}
 	}

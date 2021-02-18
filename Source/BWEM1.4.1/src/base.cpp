@@ -79,6 +79,8 @@ Base::Base(Area * pArea, const TilePosition & location, const vector<Ressource *
 			baseCommandCenter = unit;
 		}
 	}
+
+	turrets.clear();
 }
 
 
@@ -335,19 +337,22 @@ int Base::getRemainingMinerals()
 void Base::checkAssignment(BWAPI::Unit worker, std::map<BWAPI::Position, BWEM::Base *>& _ownedBases, BWEM::Base* & assignedBase)
 {
 	// Check if they're a gas worker
-	for (auto assignment : refinery_Assignments)
+	if (refinery_Assignments.size())
 	{
-		if (assignment.second.contains(worker))
+		for (auto assignment : refinery_Assignments)
 		{
-			if (!baseCommandCenter->isBeingConstructed() && baseRefinery->exists() && !baseRefinery->isBeingConstructed())
+			if (assignment.second.contains(worker))
 			{
-				worker->gather(assignment.first);
-				return;
-			}
-			else
-			{
-				worker->move(baseCommandCenter->getPosition());
-				return;
+				if (!baseCommandCenter->isBeingConstructed() && baseRefinery->exists() && !baseRefinery->isBeingConstructed())
+				{
+					worker->gather(assignment.first);
+					return;
+				}
+				else
+				{
+					worker->move(baseCommandCenter->getPosition());
+					return;
+				}
 			}
 		}
 	}
@@ -362,23 +367,26 @@ void Base::checkAssignment(BWAPI::Unit worker, std::map<BWAPI::Position, BWEM::B
 
 
 	// Check if they're a mineral worker
-	for (auto assignment : mineral_Assignments)
+	if (mineral_Assignments.size())
 	{
-		if (assignment.second.contains(worker))
+		for (auto assignment : mineral_Assignments)
 		{
-			for (auto patch : mineralUnit)
+			if (assignment.second.contains(worker))
 			{
-				if (patch.first == assignment.first)
+				for (auto patch : mineralUnit)
 				{
-					if (!baseCommandCenter->isBeingConstructed())
+					if (patch.first == assignment.first)
 					{
-						worker->gather(patch.second);
-						return;
-					}
-					else
-					{
-						worker->move(baseCommandCenter->getPosition());
-						return;
+						if (!baseCommandCenter->isBeingConstructed())
+						{
+							worker->gather(patch.second);
+							return;
+						}
+						else
+						{
+							worker->move(baseCommandCenter->getPosition());
+							return;
+						}
 					}
 				}
 			}

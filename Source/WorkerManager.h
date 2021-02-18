@@ -36,6 +36,7 @@ namespace insanitybot
 
 		void onUnitDestroy(BWAPI::Unit unit);
 
+		void infoText();
 		static WorkerManager & Instance();
 	};
 }

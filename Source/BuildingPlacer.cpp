@@ -926,8 +926,7 @@ BWAPI::TilePosition BuildingPlacer::getSupplyLocation(BWAPI::UnitType building, 
 
 BWAPI::TilePosition insanitybot::BuildingPlacer::getTurretLocation(InformationManager & _infoManager)
 {
-	BWAPI::TilePosition targetLocation = BWAPI::Broodwar->getBuildLocation(BWAPI::UnitTypes::Terran_Missile_Turret, _infoManager.getMainPosition(), 16);
-	for (auto base : _infoManager.getOwnedBases())
+	for (auto & base : _infoManager.getOwnedBases())
 	{
 		if (base.second->numTurretsHere() < 3)
 		{
@@ -950,38 +949,24 @@ BWAPI::TilePosition insanitybot::BuildingPlacer::getTurretLocation(InformationMa
 			}
 			else
 			{
-				return BWAPI::Broodwar->getBuildLocation(BWAPI::UnitTypes::Terran_Missile_Turret, commandCenter);
+				return getPositionNear(BWAPI::UnitTypes::Terran_Missile_Turret, commandCenter, _infoManager.getStrategy());
 			}
 		}
 	}
 
-	return targetLocation;
+	return getPositionNear(BWAPI::UnitTypes::Terran_Missile_Turret, _infoManager.getMainPosition(), _infoManager.getStrategy());;
 }
 
 bool insanitybot::BuildingPlacer::validTurretLocation(BWAPI::TilePosition targetLocation)
 {
-	//Top left
-	if (!BWAPI::Broodwar->isBuildable(targetLocation, true))
+	//Check each tilePosition
+	if (BWAPI::Broodwar->isBuildable(targetLocation, true) && BWAPI::Broodwar->isBuildable(targetLocation + BWAPI::TilePosition(0, 1), true) &&
+		BWAPI::Broodwar->isBuildable(targetLocation + BWAPI::TilePosition(1, 0), true) && BWAPI::Broodwar->isBuildable(targetLocation + BWAPI::TilePosition(1, 1), true))
 	{
-		return false;
-	}
-	//Bottom left
-	else if (!BWAPI::Broodwar->isBuildable(targetLocation + BWAPI::TilePosition(0,1), true))
-	{
-		return false;
-	}
-	//Top right
-	else if (!BWAPI::Broodwar->isBuildable(targetLocation + BWAPI::TilePosition(1, 0), true))
-	{
-		return false;
-	}
-	//Bottom right
-	else if (!BWAPI::Broodwar->isBuildable(targetLocation + BWAPI::TilePosition(1, 1), true))
-	{
-		return false;
+		return true;
 	}
 
-	return true;
+	return false;
 }
 
 BWAPI::TilePosition insanitybot::BuildingPlacer::getPositionNear(BWAPI::UnitType building, BWAPI::TilePosition beginingPoint, std::string strat)
@@ -1010,7 +995,8 @@ BWAPI::TilePosition insanitybot::BuildingPlacer::getPositionNear(BWAPI::UnitType
 				}
 			}
 
-			if ((building == BWAPI::UnitTypes::Terran_Factory || building == BWAPI::UnitTypes::Terran_Starport || building == BWAPI::UnitTypes::Terran_Science_Facility) && strat == "Mech")
+			if (((building == BWAPI::UnitTypes::Terran_Factory || building == BWAPI::UnitTypes::Terran_Starport || building == BWAPI::UnitTypes::Terran_Science_Facility) && strat == "Mech") ||
+				building == BWAPI::UnitTypes::Terran_Missile_Turret)
 			{
 				if (canBuildWithSpace(BWAPI::TilePosition(x, y), building, 1) && !inChoke)
 					if (theMap.GetArea(beginingPoint) == theMap.GetArea(BWAPI::TilePosition(x,y)))

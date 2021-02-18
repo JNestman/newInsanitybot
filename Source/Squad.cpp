@@ -396,43 +396,13 @@ void insanitybot::Squad::attack(BWAPI::Position attackPoint, BWAPI::Position for
 
 		if (closestTankToTarget != NULL)
 		{
-			int distanceBetween = 0;
-
-			if (haveGathered)
+			if (vulture->getDistance(closestTankToTarget) < 64)
 			{
-				int distanceBetween = sqrt(((attackPoint.x - closestTankToTarget->getPosition().x) * (attackPoint.x - closestTankToTarget->getPosition().x)) +
-					((attackPoint.y - closestTankToTarget->getPosition().y) * (attackPoint.y - closestTankToTarget->getPosition().y)));
+				vulture->attack(attackPoint);
 			}
-			else
+			else if (vulture->getDistance(closestTankToTarget) > 128)
 			{
-				int distanceBetween = sqrt(((forwardGather.x - closestTankToTarget->getPosition().x) * (forwardGather.x - closestTankToTarget->getPosition().x)) +
-					((forwardGather.y - closestTankToTarget->getPosition().y) * (forwardGather.y - closestTankToTarget->getPosition().y)));
-			}
-
-			if (distanceBetween > 0)
-			{
-				int ratio = 64 / distanceBetween;
-				int x = closestTankToTarget->getPosition().x + ratio * (attackPoint.x - closestTankToTarget->getPosition().x);
-				int y = closestTankToTarget->getPosition().y + ratio * (attackPoint.y - closestTankToTarget->getPosition().y);
-				BWAPI::Position buffer = BWAPI::Position(x, y);
-
-				if (!closeEnough(vulture->getPosition(), buffer))
-					vulture->attack(buffer);
-			}
-			else
-			{
-				if (haveGathered)
-				{
-					if (!closeEnough(vulture->getPosition(), attackPoint))
-						vulture->attack(attackPoint);
-				}
-				else
-				{
-					if (!closeEnough(vulture->getPosition(), forwardGather))
-					{
-						vulture->attack(forwardGather);
-					}
-				}
+				vulture->attack(closestTankToTarget->getPosition());
 			}
 		}
 		else
@@ -464,9 +434,9 @@ void insanitybot::Squad::attack(BWAPI::Position attackPoint, BWAPI::Position for
 			continue;
 		}
 
-		if (closestTankToTarget != NULL)
+		/*if (closestTankToTarget != NULL)
 		{
-			/*BWEM::CPPath pathToTarget;
+			BWEM::CPPath pathToTarget;
 			int shortest = 999999;
 			int distance = 0;
 			int length = -1;
@@ -530,42 +500,15 @@ void insanitybot::Squad::attack(BWAPI::Position attackPoint, BWAPI::Position for
 				}
 			}*/
 
-			int distanceBetween = 0;
-
-			if (haveGathered)
+		if (closestTankToTarget != NULL)
+		{
+			if (goliath->getDistance(closestTankToTarget) < 64)
 			{
-				int distanceBetween = sqrt(((attackPoint.x - closestTankToTarget->getPosition().x) * (attackPoint.x - closestTankToTarget->getPosition().x)) +
-					((attackPoint.y - closestTankToTarget->getPosition().y) * (attackPoint.y - closestTankToTarget->getPosition().y)));
+				goliath->attack(attackPoint);
 			}
-			else
+			else if (goliath->getDistance(closestTankToTarget) > 128)
 			{
-				int distanceBetween = sqrt(((forwardGather.x - closestTankToTarget->getPosition().x) * (forwardGather.x - closestTankToTarget->getPosition().x)) +
-					((forwardGather.y - closestTankToTarget->getPosition().y) * (forwardGather.y - closestTankToTarget->getPosition().y)));
-			}
-			if (distanceBetween > 0)
-			{
-				int ratio = 64 / distanceBetween;
-				int x = closestTankToTarget->getPosition().x + ratio * (attackPoint.x - closestTankToTarget->getPosition().x);
-				int y = closestTankToTarget->getPosition().y + ratio * (attackPoint.y - closestTankToTarget->getPosition().y);
-				BWAPI::Position buffer = BWAPI::Position(x, y);
-
-				if (!closeEnough(goliath->getPosition(), buffer))
-					goliath->attack(buffer);
-			}
-			else
-			{
-				if (haveGathered)
-				{
-					if (!closeEnough(goliath->getPosition(), attackPoint))
-						goliath->attack(attackPoint);
-				}
-				else
-				{
-					if (!closeEnough(goliath->getPosition(), forwardGather))
-					{
-						goliath->attack(forwardGather);
-					}
-				}
+				goliath->attack(closestTankToTarget->getPosition());
 			}
 		}
 		else

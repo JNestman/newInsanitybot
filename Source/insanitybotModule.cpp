@@ -13,6 +13,10 @@ namespace { auto & theMap = BWEM::Map::Instance(); }
 
 using namespace insanitybot;
 
+insanitybot::insanitybotModule::insanitybotModule()
+{
+}
+
 void insanitybotModule::onStart()
 {
 	try

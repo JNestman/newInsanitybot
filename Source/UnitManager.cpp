@@ -282,24 +282,15 @@ void UnitManager::update(InformationManager & _infoManager)
 					}
 				}
 				
-				int distanceBetween = sqrt(((_infoManager.getEnemyBases().begin()->first.x - closest.x) * (_infoManager.getEnemyBases().begin()->first.x - closest.x)) +
-					((_infoManager.getEnemyBases().begin()->first.y - closest.y) * (_infoManager.getEnemyBases().begin()->first.y - closest.y)));
-
-				if (distanceBetween > 0)
+				if (floater->getDistance(closest) < 64)
 				{
-					int ratio = 10 / distanceBetween;
-					int x = closest.x + ratio * (_infoManager.getEnemyBases().begin()->first.x - closest.x);
-					int y = closest.y + ratio * (_infoManager.getEnemyBases().begin()->first.y - closest.y);
-					BWAPI::Position buffer = BWAPI::Position(x, y);
-
-					if (!(abs(floater->getPosition().x - buffer.x) <= 128 && abs(floater->getPosition().y - buffer.y) <= 128))
-						floater->move(buffer);
+					floater->move(_infoManager.getEnemyBases().begin()->first);
 				}
-				else
+				else if (floater->getDistance(closest) > 128)
 				{
-					if (!(abs(floater->getPosition().x - closest.x) <= 128 && abs(floater->getPosition().y - closest.y) <= 128))
-						floater->move(closest);
+					floater->move(closest);
 				}
+				
 			}
 			else if (_infoManager.getEnemyBuildingPositions().size())
 			{
@@ -326,11 +317,11 @@ void UnitManager::update(InformationManager & _infoManager)
 					}
 				}
 
-				if (abs(floater->getPosition().x - closest.x) <= 64 && abs(floater->getPosition().y - closest.y) <= 64)
+				if (floater->getDistance(closest) < 64)
 				{
-					continue;
+					floater->move(_infoManager.getEnemyBuildingPositions().front());
 				}
-				else
+				else if (floater->getDistance(closest) > 128)
 				{
 					floater->move(closest);
 				}
@@ -360,11 +351,11 @@ void UnitManager::update(InformationManager & _infoManager)
 					}
 				}
 
-				if (abs(floater->getPosition().x - closest.x) <= 64 && abs(floater->getPosition().y - closest.y) <= 64)
+				if (floater->getDistance(closest) < 64)
 				{
-					continue;
+					floater->move(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y));
 				}
-				else
+				else if (floater->getDistance(closest) > 128)
 				{
 					floater->move(closest);
 				}
@@ -446,7 +437,7 @@ void UnitManager::update(InformationManager & _infoManager)
 			}
 		}
 
-		for (std::list<Squad>::iterator squad = _defensiveSquads.begin(); squad != _defensiveSquads.end(); squad++)
+		for (std::list<Squad>::iterator & squad = _defensiveSquads.begin(); squad != _defensiveSquads.end(); squad++)
 		{
 			if (target == NULL)
 			{
@@ -454,14 +445,17 @@ void UnitManager::update(InformationManager & _infoManager)
 				{
 					if (_infoManager.getStrategy() == "SKTerran")
 					{
+						squad->setHaveGathered(false);
 						_infantrySquads.push_back(*squad);
 						_defensiveSquads.erase(squad);
+						continue;
 					}
 					else if (_infoManager.getStrategy() == "Mech")
 					{
 						squad->setHaveGathered(false);
 						_mechSquads.push_back(*squad);
 						_defensiveSquads.erase(squad);
+						continue;
 					}
 				}
 			}
@@ -1038,6 +1032,8 @@ bool insanitybot::UnitManager::irradiateTarget(BWAPI::Unit vessel)
 				enemy->getType() == BWAPI::UnitTypes::Zerg_Mutalisk ||
 				enemy->getType() == BWAPI::UnitTypes::Zerg_Ultralisk ||
 				enemy->getType() == BWAPI::UnitTypes::Zerg_Queen ||
+				enemy->getType() == BWAPI::UnitTypes::Zerg_Guardian ||
+				enemy->getType() == BWAPI::UnitTypes::Zerg_Devourer ||
 				enemy->getType() == BWAPI::UnitTypes::Protoss_High_Templar ||
 				enemy->getType() == BWAPI::UnitTypes::Terran_Ghost) && vessel->getDistance(enemy) - 75 < closestDistance)
 			{
