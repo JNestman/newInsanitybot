@@ -3,7 +3,6 @@
 
 #include "BWEM1.4.1/src/bwem.h"
 #include <BWAPI.h>
-#include <list>
 
 namespace insanitybot
 {
@@ -17,6 +16,8 @@ namespace insanitybot
 
 		bool goodToAttack;
 		bool haveGathered;
+
+		bool maxSupply;
 
 		BWAPI::Position squadPosition;
 

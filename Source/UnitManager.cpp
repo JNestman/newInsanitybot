@@ -12,90 +12,9 @@ insanitybot::UnitManager::UnitManager()
 	needDefense = false;
 }
 
-void insanitybot::UnitManager::onUnitDestroy(BWAPI::Unit unit)
-{
-	if (unit->getPlayer() == BWAPI::Broodwar->enemy())
-	{
-		for (std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>>::iterator it = _irradiateDB.begin(); it != _irradiateDB.end(); it++)
-		{
-			if (it->second.first == unit)
-			{
-				_irradiateDB.erase(it);
-				return;
-			}
-		}
-	}
-	else if (unit->getType() == BWAPI::UnitTypes::Terran_Marine)
-	{
-		for (auto & squad : _infantrySquads)
-		{
-			if (squad.removeMarine(unit))
-				return;
-		}
-		for (auto & squad : _defensiveSquads)
-		{
-			if (squad.removeMarine(unit))
-				return;
-		}
-	}
-	else if (unit->getType() == BWAPI::UnitTypes::Terran_Medic)
-	{
-		for (auto & squad : _infantrySquads)
-		{
-			if (squad.removeMedic(unit))
-				return;
-		}
-		for (auto & squad : _defensiveSquads)
-		{
-			if (squad.removeMedic(unit))
-				return;
-		}
-	}
-	else if (unit->getType() == BWAPI::UnitTypes::Terran_Vulture)
-	{
-		for (auto & squad : _mechSquads)
-		{
-			if (squad.removeVulture(unit))
-				return;
-		}
-		for (auto & squad : _defensiveSquads)
-		{
-			if (squad.removeVulture(unit))
-				return;
-		}
-	}
-	else if (unit->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode || unit->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode)
-	{
-		for (auto & squad : _mechSquads)
-		{
-			if (squad.removeTank(unit))
-				return;
-		}
-		for (auto & squad : _defensiveSquads)
-		{
-			if (squad.removeTank(unit))
-				return;
-		}
-	}
-	else if (unit->getType() == BWAPI::UnitTypes::Terran_Goliath)
-	{
-		for (auto & squad : _mechSquads)
-		{
-			if (squad.removeGoliath(unit))
-				return;
-		}
-		for (auto & squad : _defensiveSquads)
-		{
-			if (squad.removeGoliath(unit))
-				return;
-		}
-	}
-	
-}
-
 void UnitManager::update(InformationManager & _infoManager)
 {
-	if (_infoManager.getScout() != NULL)
+	if (_infoManager.getScout())
 	{
 		handleScout(_infoManager.getScout());
 	}
@@ -118,9 +37,6 @@ void UnitManager::update(InformationManager & _infoManager)
 
 			if (!marine.first->exists())
 			{
-				BWAPI::Broodwar << "getMarines has dead marine" << std::endl;
-				_infoManager.getMarines().erase(marine.first);
-
 				continue;
 			}
 
@@ -128,7 +44,7 @@ void UnitManager::update(InformationManager & _infoManager)
 			{
 				for (auto bunker : _infoManager.getBunkers())
 				{
-					if (bunker->getLoadedUnits().size() < 4)
+					if (bunker->getLoadedUnits().size() < 4 && !bunker->isConstructing())
 					{
 						marine.first->load(bunker);
 						loading = true;
@@ -147,8 +63,8 @@ void UnitManager::update(InformationManager & _infoManager)
 
 			if (marine.second == 0)
 			{
-				assignSquad(marine.first, true);
-				marine.second = 1;
+				if (assignSquad(marine.first, true))
+					marine.second = 1;
 			}
 		}
 
@@ -157,16 +73,13 @@ void UnitManager::update(InformationManager & _infoManager)
 		{
 			if (!medic.first->exists())
 			{
-				BWAPI::Broodwar << "getMedics has dead medic" << std::endl;
-				_infoManager.getMedics().erase(medic.first);
-
 				continue;
 			}
 
 			if (medic.second == 0)
 			{
-				assignSquad(medic.first, true);
-				medic.second = 1;
+				if (assignSquad(medic.first, true))
+					medic.second = 1;
 			}
 		}
 	}
@@ -178,9 +91,6 @@ void UnitManager::update(InformationManager & _infoManager)
 
 			if (!marine.first->exists())
 			{
-				BWAPI::Broodwar << "getMarines has dead marine" << std::endl;
-				_infoManager.getMarines().erase(marine.first);
-
 				continue;
 			}
 
@@ -205,16 +115,13 @@ void UnitManager::update(InformationManager & _infoManager)
 		{
 			if (!vulture.first->exists())
 			{
-				BWAPI::Broodwar << "getVultures has dead vulture" << std::endl;
-				_infoManager.getVultures().erase(vulture.first);
-
 				continue;
 			}
 
 			if (vulture.second == 0)
 			{
-				assignSquad(vulture.first, false);
-				vulture.second = 1;
+				if (assignSquad(vulture.first, false))
+					vulture.second = 1;
 			}
 		}
 
@@ -223,34 +130,33 @@ void UnitManager::update(InformationManager & _infoManager)
 		{
 			if (!tank.first->exists())
 			{
-				BWAPI::Broodwar << "getTanks has dead tank" << std::endl;
-				_infoManager.getTanks().erase(tank.first);
-
 				continue;
 			}
 
 			if (tank.second == 0)
 			{
-				assignSquad(tank.first, false);
-				tank.second = 1;
+				if (assignSquad(tank.first, false))
+					tank.second = 1;
 			}
 		}
 
-		// Loop through our tanks and make sure they are assigned to a squad
+		// Loop through our Goliaths and make sure they are assigned to a squad
 		for (auto & goliath : _infoManager.getGoliaths())
 		{
-			if (!goliath.first->exists())
+			if (!goliath.first || !goliath.first->exists())
 			{
-				BWAPI::Broodwar << "getGoliaths has dead tank" << std::endl;
-				_infoManager.getGoliaths().erase(goliath.first);
-
+				BWAPI::Broodwar << "Goliath in list doesn't exist" << std::endl;
 				continue;
 			}
 
 			if (goliath.second == 0)
 			{
-				assignSquad(goliath.first, false);
-				goliath.second = 1;
+				BWAPI::Broodwar << "Goliath unassigned found" << std::endl;
+				if (assignSquad(goliath.first, false))
+				{
+					goliath.second = 1;
+					BWAPI::Broodwar << "Goliath assigned to squad" << std::endl;
+				}
 			}
 		}
 
@@ -663,9 +569,6 @@ void UnitManager::update(InformationManager & _infoManager)
 	{
 		if (!dropship.first->exists())
 		{
-			BWAPI::Broodwar << "getDropships has dead dropship" << std::endl;
-			_infoManager.getDropships().erase(dropship.first);
-
 			continue;
 		}
 
@@ -719,9 +622,6 @@ void UnitManager::update(InformationManager & _infoManager)
 	{
 		if (!vessel.first->exists())
 		{
-			BWAPI::Broodwar << "getVessels has dead vessel" << std::endl;
-			_infoManager.getVessels().erase(vessel.first);
-
 			continue;
 		}
 
@@ -855,6 +755,9 @@ void UnitManager::update(InformationManager & _infoManager)
 
 void UnitManager::handleScout(BWAPI::Unit & _scout)
 {
+	if (!_scout || !_scout->exists())
+		return;
+
 	if (!_scout->isMoving() || _scout->isGatheringMinerals() || _scout->isIdle())
 	{
 		for (auto location : theMap.StartingLocations())
@@ -865,8 +768,11 @@ void UnitManager::handleScout(BWAPI::Unit & _scout)
 	}
 }
 
-void insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio)
+bool insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio)
 {
+	if (!unassigned || !unassigned->exists())
+		return false;
+
 	if (bio)
 	{
 		if (_defensiveSquads.size() && ((unassigned->getType() == BWAPI::UnitTypes::Terran_Marine && _defensiveSquads.front().numMarines() < 12) ||
@@ -883,12 +789,12 @@ void insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio)
 				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Marine)
 				{
 					squad.addMarine(unassigned);
-					return;
+					return true;
 				}
 				else if (unassigned->getType() == BWAPI::UnitTypes::Terran_Medic)
 				{
 					squad.addMedic(unassigned);
-					return;
+					return true;
 				}
 			}
 		}
@@ -908,21 +814,25 @@ void insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio)
 				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Marine)
 				{
 					squad.addMarine(unassigned);
-					return;
+					return true;
 				}
 				else if (unassigned->getType() == BWAPI::UnitTypes::Terran_Medic)
 				{
 					squad.addMedic(unassigned);
-					return;
+					return true;
 				}
 			}
 
-			if (_infantrySquads.size() < 8)
+			if (_infantrySquads.size() < 10)
+			{
 				_infantrySquads.push_back(Squad(unassigned));
+				return true;
+			}
 		}
 		else
 		{
 			_infantrySquads.push_back(Squad(unassigned));
+			return true;
 		}
 	}
 	else
@@ -933,7 +843,7 @@ void insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio)
 		{
 			for (auto & squad : _defensiveSquads)
 			{
-				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Vulture && squad.numVultures() + _defensiveSquads.front().numGoliaths() >= 6)
+				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Vulture && squad.numVultures() + squad.numGoliaths() >= 6)
 					continue;
 
 				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode && squad.numTanks() >= 3)
@@ -945,17 +855,17 @@ void insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio)
 				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Vulture)
 				{
 					squad.addVulture(unassigned);
-					return;
+					return true;
 				}
 				else if (unassigned->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode)
 				{
 					squad.addTank(unassigned);
-					return;
+					return true;
 				}
 				else if (unassigned->getType() == BWAPI::UnitTypes::Terran_Goliath)
 				{
 					squad.addGoliath(unassigned);
-					return;
+					return true;
 				}
 			}
 		}
@@ -978,28 +888,34 @@ void insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio)
 				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Vulture)
 				{
 					squad.addVulture(unassigned);
-					return;
+					return true;
 				}
 				else if (unassigned->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode)
 				{
 					squad.addTank(unassigned);
-					return;
+					return true;
 				}
 				else if (unassigned->getType() == BWAPI::UnitTypes::Terran_Goliath)
 				{
 					squad.addGoliath(unassigned);
-					return;
+					return true;
 				}
 			}
 
 			if (_mechSquads.size() < 10)
+			{
 				_mechSquads.push_back(Squad(unassigned));
+				return true;
+			}
 		}
 		else
 		{
 			_mechSquads.push_back(Squad(unassigned));
+			return true;
 		}
 	}
+
+	return false;
 }
 
 // Will return a valid target for our science vessel to irradiate

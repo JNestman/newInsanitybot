@@ -3,12 +3,18 @@
 
 #include "BWEM1.4.1/src/bwem.h"
 #include "BuildOrder.h"
-#include <list>
 
 namespace insanitybot
 {
 	class InformationManager
 	{
+		// Deletion functions
+		void checkForDeadList(std::list<BWAPI::Unit>& listToDeleteFrom);
+		void checkForDeadMap(std::map<BWAPI::Unit, int>& mapToDeleteFrom);
+		void checkForDeadCenters();
+		void checkForDeadRefineries();
+
+		// Variables
 		std::string											_strategy;
 
 		std::list<BWAPI::UnitType>							_queue;
@@ -41,6 +47,8 @@ namespace insanitybot
 		std::list<BWAPI::Unit>								_islandCenters;
 		std::map<BWAPI::Unit, BWEM::Base *>					_workers;
 		std::map<BWAPI::Unit, BWEM::Base *>					_islandWorkers;
+
+		std::list<BWAPI::Unit>								_refineries;
 
 		BWAPI::Unit											_islandBuilder;
 
@@ -87,11 +95,11 @@ namespace insanitybot
 		InformationManager();
 		~InformationManager() {};
 		void initialize();
+		void checkQueue(BWAPI::Unit myUnit);
 		void update();
 		void updateBuildOrder();
 		bool closeEnough(BWAPI::Position location1, BWAPI::Position location2);
 		void onUnitShow(BWAPI::Unit unit);
-		void onUnitCreate(BWAPI::Unit unit);
 		void onUnitDestroy(BWAPI::Unit unit);
 		void onUnitRenegade(BWAPI::Unit unit);
 		void onUnitComplete(BWAPI::Unit unit);
@@ -107,6 +115,7 @@ namespace insanitybot
 		BWAPI::Race getEnemyRace()										{ return _enemyRace; };
 
 		std::list<BWAPI::Unit> getCommandCenters()						{ return _commandCenters; };
+		std::list<BWAPI::Unit> getRefineries()							{ return _refineries; }
 		std::list<BWAPI::Unit> getIslandCenters()						{ return _islandCenters; };
 		std::map<BWAPI::Unit, BWEM::Base *>& getWorkers()				{ return _workers; };
 		std::map<BWAPI::Unit, BWEM::Base *>& getIslandWorkers()			{ return _islandWorkers; };

@@ -17,10 +17,6 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	std::vector<BWAPI::Unit> mineralsNeedClearing = _infoManager.mineralsNeedClear();
 	bool needDefense = _infoManager.shouldHaveDefenseSquad(true);
 
-	// If we have no workers, don't bother running any of this
-	if (!_workers.size())
-		return;
-
 	/*****************************************************************************
 	* Worker defense
 	******************************************************************************/
@@ -31,10 +27,10 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 		foes.clear();
 		for (auto unit : BWAPI::Broodwar->enemy()->getUnits())
 		{
-			if (!unit)
+			if (!unit || !unit->exists())
 				continue;
 
-			if (unit->exists() && unit->getDistance(BWAPI::Position(_infoManager.getMainPosition())) < 600 && !unit->isFlying())
+			if (unit->getDistance(BWAPI::Position(_infoManager.getMainPosition())) < 600 && !unit->isFlying())
 			{
 				foes.insert(unit);
 
@@ -46,8 +42,23 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 
 		if (_bullyHunters.size() && numberOfEnemies)
 		{
+			for (std::list<BWAPI::Unit>::iterator deadHunter = _bullyHunters.begin(); deadHunter != _bullyHunters.end();)
+			{
+				if (!(*deadHunter) || !(*deadHunter)->exists())
+				{
+					deadHunter = _bullyHunters.erase(deadHunter);
+				}
+				else
+				{
+					deadHunter++;
+				}
+			}
+
 			for (auto hunter : _bullyHunters)
 			{
+				if (!hunter || !hunter->exists())
+					continue;
+
 				int closest = 99999;
 				target = *foes.begin();
 
@@ -68,13 +79,14 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 		{
 			for (auto worker : _bullyHunters)
 			{
-				_workers.insert(std::pair<BWAPI::Unit, BWEM::Base *>(worker, _infoManager.getOwnedBases().begin()->second));
+				if (worker && worker->exists())
+					_workers.insert(std::pair<BWAPI::Unit, BWEM::Base *>(worker, _infoManager.getOwnedBases().begin()->second));
 			}
 
 			_bullyHunters.clear();
 		}
-		
-		if (numberOfEnemies && _workers.size() && _bullyHunters.size() <= numberOfEnemies * 2 )
+
+		if (numberOfEnemies && _workers.size() && _bullyHunters.size() <= numberOfEnemies * 2)
 		{
 			assignBullyHunters(_workers, numberOfEnemies);
 		}
@@ -83,7 +95,8 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	{
 		for (auto worker : _bullyHunters)
 		{
-			_workers.insert(std::pair<BWAPI::Unit, BWEM::Base *>(worker, _infoManager.getOwnedBases().begin()->second));
+			if (worker && worker->exists())
+				_workers.insert(std::pair<BWAPI::Unit, BWEM::Base *>(worker, _infoManager.getOwnedBases().begin()->second));
 		}
 
 		_bullyHunters.clear();
@@ -98,21 +111,35 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	// Repair for turrets
 	for (auto turret : _infoManager.getTurrets())
 	{
-		if (turret->isAttacking() || turret->isUnderAttack() || turret->getHitPoints() < turret->getType().maxHitPoints())
+		if (turret->isAttacking() || turret->isUnderAttack() || (turret->getHitPoints() < turret->getType().maxHitPoints() && !turret->isBeingConstructed()))
 		{
 			needRepair = true;
 			if (_repairWorkers.size() > 2)
 			{
 				for (auto & worker : _repairWorkers)
 				{
-					if (turret->getHitPoints() < turret->getType().maxHitPoints() && worker->isIdle())
+					if (!worker || !worker->exists())
 					{
+						for (std::list<BWAPI::Unit>::iterator deadRepairer = _repairWorkers.begin(); deadRepairer != _repairWorkers.end();)
+						{
+							if ((*deadRepairer) || !(*deadRepairer)->exists())
+							{
+								deadRepairer = _repairWorkers.erase(deadRepairer);
+							}
+							else
+							{
+								deadRepairer++;
+							}
+						}
+
+						if (_repairWorkers.size() < 3)
+							assignRepairWorkers(_workers, turret);
+
+						break;
+					}
+
+					if (!worker->isRepairing())
 						worker->repair(turret);
-					}
-					else
-					{
-						worker->move(turret->getPosition());
-					}
 				}
 			}
 			else
@@ -125,16 +152,37 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	// Repair for bunker
 	for (auto bunker : _infoManager.getBunkers())
 	{
-		if (bunker->isAttacking() || bunker->isUnderAttack() || bunker->getHitPoints() < bunker->getType().maxHitPoints())
+		if (bunker->isAttacking() || bunker->isUnderAttack() || (bunker->getHitPoints() < bunker->getType().maxHitPoints() && !bunker->isBeingConstructed()))
 		{
 			needRepair = true;
 			if (_repairWorkers.size() > 2)
 			{
 				for (auto & worker : _repairWorkers)
 				{
+					if (!worker || !worker->exists())
+					{
+						for (std::list<BWAPI::Unit>::iterator deadRepairer = _repairWorkers.begin(); deadRepairer != _repairWorkers.end();)
+						{
+							if ((*deadRepairer) || !(*deadRepairer)->exists())
+							{
+								deadRepairer = _repairWorkers.erase(deadRepairer);
+							}
+							else
+							{
+								deadRepairer++;
+							}
+						}
+
+						if (_repairWorkers.size() < 3)
+							assignRepairWorkers(_workers, bunker);
+
+						break;
+					}
+
 					if (bunker->getHitPoints() < bunker->getType().maxHitPoints())
 					{
-						worker->repair(bunker);
+						if (!worker->isRepairing())
+							worker->repair(bunker);
 					}
 					else
 					{
@@ -158,9 +206,30 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			{
 				for (auto & worker : _repairWorkers)
 				{
+					if (!worker || !worker->exists())
+					{
+						for (std::list<BWAPI::Unit>::iterator deadRepairer = _repairWorkers.begin(); deadRepairer != _repairWorkers.end();)
+						{
+							if ((*deadRepairer) || !(*deadRepairer)->exists())
+							{
+								deadRepairer = _repairWorkers.erase(deadRepairer);
+							}
+							else
+							{
+								deadRepairer++;
+							}
+						}
+
+						if (_repairWorkers.size() < 1)
+							assignRepairWorkers(_workers, building);
+
+						break;
+					}
+
 					if (building->getHitPoints() < building->getType().maxHitPoints())
 					{
-						worker->repair(building);
+						if (!worker->isRepairing())
+							worker->repair(building);
 					}
 				}
 			}
@@ -183,6 +252,10 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 
 		_repairWorkers.clear();
 	}
+
+	// If we have no workers, don't bother running any of this
+	if (!_workers.size())
+		return;
 
 	// Are we expanding to an island base?
 	/*if (_infoManager.shouldIslandExpand())
@@ -269,7 +342,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	// Clear out blocking minerals that are close to our command centers.
 	if (mineralsNeedClearing.size() && Broodwar->getFrameCount() > 10000)
 	{
-		if (_mineralClearer != NULL)
+		if (_mineralClearer && _mineralClearer->exists())
 		{
 			if (closeEnough(_mineralClearer->getPosition(), mineralsNeedClearing.front()->getPosition()) && !_mineralClearer->isGatheringMinerals())
 				_mineralClearer->rightClick(mineralsNeedClearing.front());
@@ -281,63 +354,74 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			assignMineralClearer(_workers, mineralsNeedClearing);
 		}
 	}
-	else if (_mineralClearer != NULL)
+	else if (_mineralClearer)
 	{
-		_workers.insert(std::pair<BWAPI::Unit, BWEM::Base *>(_mineralClearer, _infoManager.getOwnedBases().begin()->second));
+		if (_mineralClearer->exists())
+			_workers.insert(std::pair<BWAPI::Unit, BWEM::Base *>(_mineralClearer, _infoManager.getOwnedBases().begin()->second));
 		_mineralClearer = NULL;
 	}
 	
-	// Check each worker's assignment (i.e. gathering minerals/gas)
-	for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _workers.begin(); it != _workers.end(); it++)
+	// If we have no owned bases don't bother checking for assignments
+	if (_infoManager.getOwnedBases().size())
 	{
-		if (it->first->getType() != BWAPI::UnitTypes::Terran_SCV)
+		// Check each worker's assignment (i.e. gathering minerals/gas)
+		for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _workers.begin(); it != _workers.end(); it++)
 		{
-			Broodwar << it->first->getType() << " found in worker list." << std::endl;
-			_workers.erase(it);
-			continue;
-		}
+			if (!it->first || !it->first->exists())
+				continue;
 
-		// Redundant check to make sure all workers are assigned to non-destroyed bases
-		bool found = false;
-		for (auto base : _infoManager.getOwnedBases())
-		{
-			if (it->second == base.second)
+			if (it->first->getType() != BWAPI::UnitTypes::Terran_SCV)
 			{
-				found = true;
-				break;
+				Broodwar << it->first->getType() << " found in worker list." << std::endl;
+				continue;
+			}
+
+			// Redundant check to make sure all workers are assigned to non-destroyed bases
+			bool found = false;
+			for (auto base : _infoManager.getOwnedBases())
+			{
+				if (it->second == base.second)
+				{
+					found = true;
+					break;
+				}
+			}
+			if (!found)
+			{
+				// ToDo: We still don't have a good workaround for reassigning workers with no owned bases. Will crash the bot.
+				// Though, at that point, the chances of winning would be slim.
+				if (_infoManager.getOwnedBases().size())
+					it->second = _infoManager.getOwnedBases().begin()->second;
+			}
+
+			if (it->first->isIdle() || (it->second->baseHasRefinery() && it->second->getNumGasWorkers() < 3) ||
+				(it->first->isGatheringMinerals() && !it->second->miningAssignmentExists(it->first)))
+			{
+				it->second->checkAssignment(it->first, _infoManager.getOwnedBases(), it->second);
 			}
 		}
-		if (!found)
-		{
-			// ToDo: We still don't have a good workaround for reassigning workers with no owned bases. Will crash the bot.
-			// Though, at that point, the chances of winning would be slim.
-			if (_infoManager.getOwnedBases().size())
-				it->second = _infoManager.getOwnedBases().begin()->second;
-		}
-
-		if (it->first->isIdle() || (it->second->baseHasRefinery() && it->second->getNumGasWorkers() < 3) ||
-			(it->first->isGatheringMinerals() && !it->second->miningAssignmentExists(it->first)))
-		{
-			it->second->checkAssignment(it->first, _infoManager.getOwnedBases(), it->second);
-		}
 	}
-	for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _infoManager.getIslandWorkers().begin(); it != _infoManager.getIslandWorkers().end(); it++)
+	// If we don't have island bases don't bother checking assignments
+	if (_infoManager.getIslandBases().size())
 	{
-		if (it->first->isIdle() || (it->second->baseHasRefinery() && it->second->getNumGasWorkers() < 3) ||
-			(it->first->isGatheringMinerals() && !it->second->miningAssignmentExists(it->first)))
+		for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _infoManager.getIslandWorkers().begin(); it != _infoManager.getIslandWorkers().end(); it++)
 		{
-			it->second->checkAssignment(it->first, _infoManager.getOwnedIslandBases(), it->second);
+			if (it->first->isIdle() || (it->second->baseHasRefinery() && it->second->getNumGasWorkers() < 3) ||
+				(it->first->isGatheringMinerals() && !it->second->miningAssignmentExists(it->first)))
+			{
+				it->second->checkAssignment(it->first, _infoManager.getOwnedIslandBases(), it->second);
+			}
 		}
 	}
 
 	// If a building has lost its worker, assign a new one
 	for (auto & building : _infoManager.getConstructing())
 	{
-		if (building->isUnderAttack() && building->getHitPoints() < 30)
+		/*if (building->isUnderAttack() && building->getHitPoints() < 50)
 		{
 			building->cancelConstruction();
 			continue;
-		}
+		}*/
 
 		if (building->getBuildUnit() == NULL || !building->getBuildUnit()->exists())
 		{
@@ -348,6 +432,9 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 
 				for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _workers.begin(); it != _workers.end(); it++)
 				{
+					if (!it->first || !it->first->exists())
+						continue;
+
 					if (it->first->getType() != BWAPI::UnitTypes::Terran_SCV)
 					{
 						Broodwar << it->first->getType() << " found in worker list." << std::endl;
@@ -366,7 +453,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 					}
 				}
 
-				if (builder->first)
+				if (builder->first && builder->first->exists())
 				{
 					builder->first->rightClick(building);
 					builder->second->removeAssignment(builder->first);
@@ -376,6 +463,9 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 					// If we didn't find a builder, remove the height and distance requirements
 					for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _workers.begin(); it != _workers.end(); it++)
 					{
+						if (!it->first || !it->first->exists())
+							continue;
+
 						if (it->first->getType() != BWAPI::UnitTypes::Terran_SCV)
 						{
 							Broodwar << it->first->getType() << " found in worker list." << std::endl;
@@ -391,7 +481,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 						}
 					}
 
-					if (builder->first)
+					if (builder->first && builder->first->exists())
 					{
 						builder->first->rightClick(building);
 						builder->second->removeAssignment(builder->first);
@@ -417,6 +507,9 @@ void WorkerManager::construct(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWA
 
 		for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _workers.begin(); it != _workers.end(); it++)
 		{
+			if (!it->first || !it->first->exists())
+				continue;
+
 			if (it->first->getType() != BWAPI::UnitTypes::Terran_SCV)
 			{
 				Broodwar << it->first->getType() << " found in worker list." << std::endl;
@@ -435,7 +528,7 @@ void WorkerManager::construct(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWA
 			}
 		}
 
-		if (builder != _workers.begin())
+		if (builder->first && builder->first->exists() && builder != _workers.begin())
 		{
 			// Register an event that draws the target build location
 			Broodwar->registerEvent([targetLocation, structure](Game*)
@@ -475,6 +568,9 @@ void WorkerManager::construct(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWA
 			// If we didn't find a builder, remove the height and distance requirements
 			for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _workers.begin(); it != _workers.end(); it++)
 			{
+				if (!it->first || !it->first->exists())
+					continue;
+
 				if (it->first->getType() != BWAPI::UnitTypes::Terran_SCV)
 				{
 					Broodwar << it->first->getType() << " found in worker list." << std::endl;
@@ -490,7 +586,7 @@ void WorkerManager::construct(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWA
 				}
 			}
 
-			if (builder->first)
+			if (builder->first && builder->first->exists())
 			{
 				// Register an event that draws the target build location
 				Broodwar->registerEvent([targetLocation, structure](Game*)
@@ -544,6 +640,9 @@ void WorkerManager::supplyConstruction(std::map<BWAPI::Unit, BWEM::Base *>& _wor
 
 		for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _workers.begin(); it != _workers.end(); it++)
 		{
+			if (!it->first || !it->first->exists())
+				continue;
+
 			if (it->first->getType() != BWAPI::UnitTypes::Terran_SCV)
 			{
 				Broodwar << it->first->getType() << " found in worker list." << std::endl;
@@ -562,7 +661,7 @@ void WorkerManager::supplyConstruction(std::map<BWAPI::Unit, BWEM::Base *>& _wor
 			}
 		}
 
-		if (builder->first)
+		if (builder->first && builder->first->exists())
 		{
 			// Register an event that draws the target build location
 			Broodwar->registerEvent([targetBuildLocation, supplyProviderType](Game*)
@@ -602,6 +701,9 @@ void WorkerManager::supplyConstruction(std::map<BWAPI::Unit, BWEM::Base *>& _wor
 			// If we didn't find a builder, remove the height and distance requirements
 			for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _workers.begin(); it != _workers.end(); it++)
 			{
+				if (!it->first || !it->first->exists())
+					continue;
+
 				if (it->first->getType() != BWAPI::UnitTypes::Terran_SCV)
 				{
 					Broodwar << it->first->getType() << " found in worker list." << std::endl;
@@ -617,7 +719,7 @@ void WorkerManager::supplyConstruction(std::map<BWAPI::Unit, BWEM::Base *>& _wor
 				}
 			}
 
-			if (builder->first)
+			if (builder->first && builder->first->exists())
 			{
 				// Register an event that draws the target build location
 				Broodwar->registerEvent([targetBuildLocation, supplyProviderType](Game*)
@@ -662,14 +764,14 @@ void insanitybot::WorkerManager::assignBullyHunters(std::map<BWAPI::Unit, BWEM::
 	{
 		std::map<BWAPI::Unit, BWEM::Base *>::iterator & hunter = _workers.begin();
 
-		if (hunter->first->getType() != BWAPI::UnitTypes::Terran_SCV)
+		if (hunter->first && hunter->first->exists())
 		{
-			Broodwar << hunter->first->getType() << " found in worker list." << std::endl;
-			return;
-		}
+			if (hunter->first->getType() != BWAPI::UnitTypes::Terran_SCV)
+			{
+				Broodwar << hunter->first->getType() << " found in worker list." << std::endl;
+				return;
+			}
 
-		if (hunter->first)
-		{
 			_bullyHunters.push_back(hunter->first);
 			hunter->second->removeAssignment(hunter->first);
 			_workers.erase(hunter);
@@ -684,13 +786,16 @@ void insanitybot::WorkerManager::assignBullyHunters(std::map<BWAPI::Unit, BWEM::
 
 void insanitybot::WorkerManager::assignRepairWorkers(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWAPI::Unit building)
 {
-	if (_workers.size())
+	if (_workers.size() > 3)
 	{
 		int shortestDistance = 999999;
 		std::map<BWAPI::Unit, BWEM::Base *>::iterator & repairer = _workers.begin();
 
 		for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _workers.begin(); it != _workers.end(); it++)
 		{
+			if (!it->first || !it->first->exists())
+				continue;
+
 			if (it->first->getType() != BWAPI::UnitTypes::Terran_SCV)
 			{
 				Broodwar << it->first->getType() << " found in worker list." << std::endl;
@@ -705,7 +810,7 @@ void insanitybot::WorkerManager::assignRepairWorkers(std::map<BWAPI::Unit, BWEM:
 			}
 		}
 
-		if (repairer->first)
+		if (repairer->first && repairer->first->exists())
 		{
 			_repairWorkers.push_back(repairer->first);
 			repairer->second->removeAssignment(repairer->first);
@@ -732,6 +837,9 @@ void insanitybot::WorkerManager::assignMineralClearer(std::map<BWAPI::Unit, BWEM
 
 		for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _workers.begin(); it != _workers.end(); it++)
 		{
+			if (!it->first || !it->first->exists())
+				continue;
+
 			if (it->first->getType() != BWAPI::UnitTypes::Terran_SCV)
 			{
 				Broodwar << it->first->getType() << " found in worker list." << std::endl;
@@ -746,7 +854,7 @@ void insanitybot::WorkerManager::assignMineralClearer(std::map<BWAPI::Unit, BWEM
 			}
 		}
 
-		if (clearer->first)
+		if (clearer->first->exists())
 		{
 			_mineralClearer = clearer->first;
 			clearer->second->removeAssignment(clearer->first);

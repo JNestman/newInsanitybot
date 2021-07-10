@@ -170,29 +170,21 @@ Mineral * Base::getDestroyedMineral(BWAPI::Unit patch)
 
 void Base::onUnitDestroy(BWAPI::Unit unit)
 {
-	if (unit->getType().isWorker())
+	for (auto & assignment : mineral_Assignments)
 	{
-		for (auto & assignment : mineral_Assignments)
+		if (assignment.second.contains(unit))
 		{
-			if (assignment.second.contains(unit))
-			{
-				assignment.second.erase(unit);
-			}
-		}
-
-		for (auto & assignment : refinery_Assignments)
-		{
-			if (assignment.second.contains(unit))
-			{
-				assignment.second.erase(unit);
-			}
+			assignment.second.erase(unit);
+			return;
 		}
 	}
-	else if (unit->getType().isRefinery())
+
+	for (auto & assignment : refinery_Assignments)
 	{
-		if (unit == baseRefinery)
+		if (assignment.second.contains(unit))
 		{
-			setBaseRefinery(NULL);
+			assignment.second.erase(unit);
+			return;
 		}
 	}
 }

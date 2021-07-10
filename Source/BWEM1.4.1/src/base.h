@@ -110,6 +110,7 @@ public:
 
 	void setBaseRefinery(BWAPI::Unit refinery);
 	void setbaseCommandCenter(BWAPI::Unit commandCenter);
+	BWAPI::Unit getBaseCommandCenter() { return baseCommandCenter; }
 	bool baseHasGeyser() { return !m_Geysers.empty(); }
 	bool baseHasRefinery() { return baseRefinery; }
 	bool isGasWorker(BWAPI::Unit);

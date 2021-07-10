@@ -17,8 +17,11 @@ void GameCommander::initialize()
 void GameCommander::update()
 {
 	_informationManager.update();
+
 	_workerManager.update(_informationManager);
+
 	_unitManager.update(_informationManager);
+
 	_creationManager.update(_informationManager);
 }
 
@@ -27,28 +30,22 @@ void GameCommander::onUnitShow(BWAPI::Unit unit)
 	_informationManager.onUnitShow(unit);
 }
 
-void GameCommander::onUnitCreate(BWAPI::Unit unit)
-{
-	_informationManager.onUnitCreate(unit);
-	_creationManager.checkQueue(unit, _informationManager.getQueue(), _informationManager.getAndAlterMinerals(), _informationManager.getAndAlterGas());
-}
-
 void GameCommander::onUnitDestroy(BWAPI::Unit unit)
 {
 	_informationManager.onUnitDestroy(unit);
-	_workerManager.onUnitDestroy(unit);
-	_unitManager.onUnitDestroy(unit);
+	//_workerManager.onUnitDestroy(unit);
+	//_unitManager.onUnitDestroy(unit);
 }
 
 void insanitybot::GameCommander::onUnitRenegade(BWAPI::Unit unit)
 {
-	_informationManager.onUnitRenegade(unit);
-	_creationManager.checkQueue(unit, _informationManager.getQueue(), _informationManager.getAndAlterMinerals(), _informationManager.getAndAlterGas());
+	//_informationManager.onUnitRenegade(unit);
+	//_creationManager.checkQueue(unit, _informationManager.getQueue(), _informationManager.getAndAlterMinerals(), _informationManager.getAndAlterGas());
 }
 
 void insanitybot::GameCommander::onUnitComplete(BWAPI::Unit unit)
 {
-	_informationManager.onUnitComplete(unit);
+	//_informationManager.onUnitComplete(unit);
 }
 
 void GameCommander::infoText()
@@ -63,6 +60,8 @@ void GameCommander::infoText()
 	Broodwar->drawTextScreen(200, 90, "EnemyStructures: %d", _informationManager.getEnemyBuildingPositions().size());
 	_unitManager.infoText();
 	_workerManager.infoText();
+	Broodwar->drawTextScreen(50, 30, "needDefense: %d", _informationManager.shouldHaveDefenseSquad(false));
+	Broodwar->drawTextScreen(50, 40, "numRefineries: %d", _informationManager.getRefineries().size());
 
 	Broodwar->drawCircleMap(_informationManager.getMainChokePos(), 10, BWAPI::Colors::Orange);
 	Broodwar->drawCircleMap(_informationManager.getNaturalChokePos(), 10, BWAPI::Colors::Red);

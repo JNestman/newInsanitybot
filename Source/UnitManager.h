@@ -3,7 +3,6 @@
 
 #include "BWEM1.4.1/src/bwem.h"
 #include <BWAPI.h>
-#include <list>
 #include "InformationManager.h"
 #include "Squad.h"
 
@@ -28,7 +27,7 @@ namespace insanitybot
 
 		void update(InformationManager & _infoManager);
 		void handleScout(BWAPI::Unit & _scout);
-		void assignSquad(BWAPI::Unit unassigned, bool bio);
+		bool assignSquad(BWAPI::Unit unassigned, bool bio);
 
 		bool irradiateTarget(BWAPI::Unit vessel);
 		bool notIrradiateTarged(BWAPI::Unit potentialTarget);
