@@ -151,11 +151,9 @@ void UnitManager::update(InformationManager & _infoManager)
 
 			if (goliath.second == 0)
 			{
-				BWAPI::Broodwar << "Goliath unassigned found" << std::endl;
 				if (assignSquad(goliath.first, false))
 				{
 					goliath.second = 1;
-					BWAPI::Broodwar << "Goliath assigned to squad" << std::endl;
 				}
 			}
 		}
@@ -328,7 +326,7 @@ void UnitManager::update(InformationManager & _infoManager)
 
 		for (auto unit : BWAPI::Broodwar->enemy()->getUnits())
 		{
-			if (!unit)
+			if (!unit || !unit->exists())
 				continue;
 
 			int distance = unit->getDistance(BWAPI::Position(_infoManager.getMainPosition()));
@@ -354,14 +352,14 @@ void UnitManager::update(InformationManager & _infoManager)
 						squad->setHaveGathered(false);
 						_infantrySquads.push_back(*squad);
 						_defensiveSquads.erase(squad);
-						continue;
+						break;
 					}
 					else if (_infoManager.getStrategy() == "Mech")
 					{
 						squad->setHaveGathered(false);
 						_mechSquads.push_back(*squad);
 						_defensiveSquads.erase(squad);
-						continue;
+						break;
 					}
 				}
 			}
@@ -386,8 +384,10 @@ void UnitManager::update(InformationManager & _infoManager)
 				else if (_infoManager.getStrategy() == "Mech")
 				{
 					// Don't send squads with no anti air to defend air attacks
-					if (_infoManager.enemyHasAir() && squad->numGoliaths() < 1)
+					if (target->getType().isFlyer() && squad->numGoliaths() < 1)
 					{
+						squad->setHaveGathered(false);
+						_mechSquads.push_back(*squad);
 						_defensiveSquads.erase(squad);
 						break;
 					}
@@ -625,11 +625,11 @@ void UnitManager::update(InformationManager & _infoManager)
 			continue;
 		}
 
-		for (std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>>::iterator target = _irradiateDB.begin(); target != _irradiateDB.end(); target++)
+		for (std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>>::iterator target = _irradiateDB.begin(); target != _irradiateDB.end();)
 		{
 			if (BWAPI::Broodwar->getFrameCount() - target->second.second > 72)
 			{
-				_irradiateDB.erase(target);
+				target = _irradiateDB.erase(target);
 				continue;
 			}
 
@@ -641,6 +641,8 @@ void UnitManager::update(InformationManager & _infoManager)
 					goto nextVessel;
 				}
 			}
+
+			target++;
 		}
 
 		if (!irradiateTarget(vessel.first))

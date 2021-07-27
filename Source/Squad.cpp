@@ -195,7 +195,7 @@ void insanitybot::Squad::attack(BWAPI::Position attackPoint, BWAPI::Position for
 
 	if (BWAPI::Broodwar->self()->supplyUsed() > 392)
 		maxSupply = true;
-	else if (BWAPI::Broodwar->self()->supplyUsed() < 250 && maxSupply)
+	else if (BWAPI::Broodwar->self()->supplyUsed() < 300 && maxSupply)
 		maxSupply = false;
 
 	/****************************************************************************************
@@ -806,6 +806,8 @@ void insanitybot::Squad::gather(BWAPI::Position gatherPoint)
 				if (!closeEnough(gatherPoint, (*goliath)->getPosition()))
 					(*goliath)->attack(gatherPoint);
 			}
+
+			goliath++;
 		}
 	}
 }

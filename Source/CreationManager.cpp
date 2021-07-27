@@ -111,7 +111,8 @@ void CreationManager::update(InformationManager & _infoManager)
 				}
 			}
 
-			if (unit == BWAPI::UnitTypes::Terran_Missile_Turret && (!_infoManager.getEngibays().size() || BWAPI::Broodwar->getFrameCount() % 100 == 0))
+			//if (unit == BWAPI::UnitTypes::Terran_Missile_Turret && (!_infoManager.getEngibays().size() || BWAPI::Broodwar->getFrameCount() % 100 == 0))
+			if (unit == BWAPI::UnitTypes::Terran_Missile_Turret && !_infoManager.getEngibays().size())
 			{
 				std::list<BWAPI::UnitType>& queue = _infoManager.getQueue();
 				for (std::list<BWAPI::UnitType>::iterator it = queue.begin(); it != queue.end(); it++)
@@ -247,9 +248,7 @@ void CreationManager::update(InformationManager & _infoManager)
 				mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Goliath.mineralPrice() &&
 				gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Goliath.gasPrice())
 			{
-				BWAPI::Broodwar << "Goliath to be built" << std::endl;
 				factory->train(BWAPI::UnitTypes::Terran_Goliath);
-				BWAPI::Broodwar << "Goliath built" << std::endl;
 				mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Goliath.mineralPrice();
 				gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Goliath.gasPrice();
 			}
@@ -287,7 +286,7 @@ void CreationManager::update(InformationManager & _infoManager)
 			}
 			else if (starport->getAddon() != NULL)
 			{
-				if (_infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Dropship) < 1 && (_infoManager.getIslandBases().size() || _infoManager.getOwnedIslandBases().size()) &&
+				/*if (_infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Dropship) < 1 && (_infoManager.getIslandBases().size() || _infoManager.getOwnedIslandBases().size()) &&
 					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Dropship.mineralPrice() &&
 					gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Dropship.gasPrice())
 				{
@@ -295,7 +294,8 @@ void CreationManager::update(InformationManager & _infoManager)
 					mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Dropship.mineralPrice();
 					gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Dropship.gasPrice();
 				}
-				else if (_infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Science_Facility)  && _infoManager.getStrategy() == "SKTerran" &&
+				else*/ 
+				if (_infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Science_Facility)  && _infoManager.getStrategy() == "SKTerran" &&
 					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Science_Vessel.mineralPrice() &&
 					gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Science_Vessel.gasPrice())
 				{

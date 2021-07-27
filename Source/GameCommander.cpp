@@ -59,9 +59,9 @@ void GameCommander::infoText()
 	Broodwar->drawTextScreen(200, 80, "EnemyBases: %d", _informationManager.getEnemyBases().size());
 	Broodwar->drawTextScreen(200, 90, "EnemyStructures: %d", _informationManager.getEnemyBuildingPositions().size());
 	_unitManager.infoText();
-	_workerManager.infoText();
 	Broodwar->drawTextScreen(50, 30, "needDefense: %d", _informationManager.shouldHaveDefenseSquad(false));
-	Broodwar->drawTextScreen(50, 40, "numRefineries: %d", _informationManager.getRefineries().size());
+	Broodwar->drawTextScreen(50, 40, "bullyHunters: %d", _informationManager.getBullyHunters().size());
+	Broodwar->drawTextScreen(50, 50, "numRefineries: %d", _informationManager.getRefineries().size());
 
 	Broodwar->drawCircleMap(_informationManager.getMainChokePos(), 10, BWAPI::Colors::Orange);
 	Broodwar->drawCircleMap(_informationManager.getNaturalChokePos(), 10, BWAPI::Colors::Red);

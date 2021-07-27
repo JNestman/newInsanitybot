@@ -7,13 +7,14 @@ void WorkerManager::initialize()
 {
 	_lastCheckSupply = 0;
 	_lastCheckBuild = 0;
-	_repairWorkers.clear();
 	_mineralClearer = NULL;
 }
 
 void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 {
 	std::map<BWAPI::Unit, BWEM::Base*>& _workers = _infoManager.getWorkers();
+	std::list<BWAPI::Unit>& _bullyHunters = _infoManager.getBullyHunters();
+	std::list<BWAPI::Unit>& _repairWorkers = _infoManager.getRepairWorkers();
 	std::vector<BWAPI::Unit> mineralsNeedClearing = _infoManager.mineralsNeedClear();
 	bool needDefense = _infoManager.shouldHaveDefenseSquad(true);
 
@@ -54,7 +55,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 				}
 			}
 
-			for (auto hunter : _bullyHunters)
+			for (auto & hunter : _bullyHunters)
 			{
 				if (!hunter || !hunter->exists())
 					continue;
@@ -71,24 +72,14 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 					}
 				}
 
-				if (!hunter->isAttacking())
+				if (!hunter->isAttacking() && !hunter->getGroundWeaponCooldown())
 					hunter->attack(target);
 			}
-		}
-		else if (_bullyHunters.size())
-		{
-			for (auto worker : _bullyHunters)
-			{
-				if (worker && worker->exists())
-					_workers.insert(std::pair<BWAPI::Unit, BWEM::Base *>(worker, _infoManager.getOwnedBases().begin()->second));
-			}
-
-			_bullyHunters.clear();
 		}
 
 		if (numberOfEnemies && _workers.size() && _bullyHunters.size() <= numberOfEnemies * 2)
 		{
-			assignBullyHunters(_workers, numberOfEnemies);
+			assignBullyHunters(_workers, _bullyHunters, numberOfEnemies);
 		}
 	}
 	else if (_bullyHunters.size())
@@ -96,7 +87,9 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 		for (auto worker : _bullyHunters)
 		{
 			if (worker && worker->exists())
+			{
 				_workers.insert(std::pair<BWAPI::Unit, BWEM::Base *>(worker, _infoManager.getOwnedBases().begin()->second));
+			}
 		}
 
 		_bullyHunters.clear();
@@ -133,7 +126,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 						}
 
 						if (_repairWorkers.size() < 3)
-							assignRepairWorkers(_workers, turret);
+							assignRepairWorkers(_workers, _repairWorkers, turret);
 
 						break;
 					}
@@ -144,7 +137,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			}
 			else
 			{
-				assignRepairWorkers(_workers, turret);
+				assignRepairWorkers(_workers, _repairWorkers, turret);
 			}
 		}
 	}
@@ -174,7 +167,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 						}
 
 						if (_repairWorkers.size() < 3)
-							assignRepairWorkers(_workers, bunker);
+							assignRepairWorkers(_workers, _repairWorkers, bunker);
 
 						break;
 					}
@@ -192,7 +185,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			}
 			else
 			{
-				assignRepairWorkers(_workers, bunker);
+				assignRepairWorkers(_workers, _repairWorkers, bunker);
 			}
 		}
 	}
@@ -221,7 +214,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 						}
 
 						if (_repairWorkers.size() < 1)
-							assignRepairWorkers(_workers, building);
+							assignRepairWorkers(_workers, _repairWorkers, building);
 
 						break;
 					}
@@ -235,7 +228,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			}
 			else
 			{
-				assignRepairWorkers(_workers, building);
+				assignRepairWorkers(_workers, _repairWorkers, building);
 			}
 		}
 	}
@@ -247,7 +240,10 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 		for (auto & worker : _repairWorkers)
 		{
 			if (worker && worker->exists() && _infoManager.getOwnedBases().size())
+			{
 				_workers.insert(std::pair<BWAPI::Unit, BWEM::Base *>(worker, _infoManager.getOwnedBases().begin()->second));
+				worker->move(_infoManager.getOwnedBases().begin()->first);
+			}
 		}
 
 		_repairWorkers.clear();
@@ -356,7 +352,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	}
 	else if (_mineralClearer)
 	{
-		if (_mineralClearer->exists())
+		if (_mineralClearer && _mineralClearer->exists())
 			_workers.insert(std::pair<BWAPI::Unit, BWEM::Base *>(_mineralClearer, _infoManager.getOwnedBases().begin()->second));
 		_mineralClearer = NULL;
 	}
@@ -406,7 +402,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	{
 		for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _infoManager.getIslandWorkers().begin(); it != _infoManager.getIslandWorkers().end(); it++)
 		{
-			if (it->first->isIdle() || (it->second->baseHasRefinery() && it->second->getNumGasWorkers() < 3) ||
+			if ((it->first->isIdle() || it->first->isAttacking()) || (it->second->baseHasRefinery() && it->second->getNumGasWorkers() < 3) ||
 				(it->first->isGatheringMinerals() && !it->second->miningAssignmentExists(it->first)))
 			{
 				it->second->checkAssignment(it->first, _infoManager.getOwnedIslandBases(), it->second);
@@ -758,7 +754,7 @@ void WorkerManager::supplyConstruction(std::map<BWAPI::Unit, BWEM::Base *>& _wor
 	}
 }
 
-void insanitybot::WorkerManager::assignBullyHunters(std::map<BWAPI::Unit, BWEM::Base*>& _workers, int numberOfEnemies)
+void insanitybot::WorkerManager::assignBullyHunters(std::map<BWAPI::Unit, BWEM::Base*>& _workers, std::list<BWAPI::Unit>& _bullyHunters, int numberOfEnemies)
 {
 	if (_workers.size())
 	{
@@ -780,11 +776,11 @@ void insanitybot::WorkerManager::assignBullyHunters(std::map<BWAPI::Unit, BWEM::
 
 	if (_bullyHunters.size() < numberOfEnemies * 2 && _workers.size())
 	{
-		assignBullyHunters(_workers, numberOfEnemies);
+		assignBullyHunters(_workers, _bullyHunters, numberOfEnemies);
 	}
 }
 
-void insanitybot::WorkerManager::assignRepairWorkers(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWAPI::Unit building)
+void insanitybot::WorkerManager::assignRepairWorkers(std::map<BWAPI::Unit, BWEM::Base *>& _workers, std::list<BWAPI::Unit>& _repairWorkers, BWAPI::Unit building)
 {
 	if (_workers.size() > 3)
 	{
@@ -824,7 +820,7 @@ void insanitybot::WorkerManager::assignRepairWorkers(std::map<BWAPI::Unit, BWEM:
 
 	if ((building->getType() == BWAPI::UnitTypes::Terran_Bunker || building->getType() == BWAPI::UnitTypes::Terran_Missile_Turret) && _repairWorkers.size() < 3)
 	{
-		assignRepairWorkers(_workers, building);
+		assignRepairWorkers(_workers, _repairWorkers, building);
 	}
 }
 
@@ -887,43 +883,6 @@ bool insanitybot::WorkerManager::closeEnough(BWAPI::Position location1, BWAPI::P
 {
 	// If the coordinates are "close enough", we call it good.
 	return abs(location1.x - location2.x) <= 128 && abs(location1.y - location2.y) <= 128;
-}
-
-void WorkerManager::onUnitDestroy(BWAPI::Unit unit)
-{
-	if (unit->getType().isWorker() && unit->getPlayer() == BWAPI::Broodwar->self())
-	{
-		if (unit == _mineralClearer)
-		{
-			_mineralClearer = NULL;
-			return;
-		}
-		else if (_repairWorkers.size() || _bullyHunters.size())
-		{
-			for (auto worker : _repairWorkers)
-			{
-				if (worker == unit)
-				{
-					_repairWorkers.remove(worker);
-					return;
-				}
-			}
-
-			for (auto worker : _bullyHunters)
-			{
-				if (worker == unit)
-				{
-					_bullyHunters.remove(worker);
-					return;
-				}
-			}
-		}
-	}
-}
-
-void insanitybot::WorkerManager::infoText()
-{
-	Broodwar->drawTextScreen(50, 20, "repairWorkers.size(): %d", _repairWorkers.size());
 }
 
 WorkerManager & WorkerManager::Instance()

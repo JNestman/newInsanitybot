@@ -46,6 +46,8 @@ namespace insanitybot
 		std::list<BWAPI::Unit>								_commandCenters;
 		std::list<BWAPI::Unit>								_islandCenters;
 		std::map<BWAPI::Unit, BWEM::Base *>					_workers;
+		std::list<BWAPI::Unit>								_bullyHunters;
+		std::list<BWAPI::Unit>								_repairWorkers;
 		std::map<BWAPI::Unit, BWEM::Base *>					_islandWorkers;
 
 		std::list<BWAPI::Unit>								_refineries;
@@ -118,6 +120,8 @@ namespace insanitybot
 		std::list<BWAPI::Unit> getRefineries()							{ return _refineries; }
 		std::list<BWAPI::Unit> getIslandCenters()						{ return _islandCenters; };
 		std::map<BWAPI::Unit, BWEM::Base *>& getWorkers()				{ return _workers; };
+		std::list<BWAPI::Unit>& getBullyHunters()						{ return _bullyHunters; };
+		std::list<BWAPI::Unit>& getRepairWorkers()						{ return _repairWorkers; };
 		std::map<BWAPI::Unit, BWEM::Base *>& getIslandWorkers()			{ return _islandWorkers; };
 		std::list<BWAPI::Unit> getBarracks()							{ return _barracks; };
 		std::list<BWAPI::Unit> getFactories()							{ return _factories; };
@@ -165,7 +169,7 @@ namespace insanitybot
 		BWAPI::Position getMainChokePos()								{ return _mainChoke; };
 		BWAPI::Position getNaturalChokePos()							{ return _naturalChoke; };
 		BWAPI::Position getEnemyNaturalPos()							{ return _enemyNatPos; };
-		int getNumWorkersOwned()										{ return _workers.size() + _islandWorkers.size(); };
+		int getNumWorkersOwned()										{ return _workers.size() + _islandWorkers.size() + _bullyHunters.size() + _repairWorkers.size(); };
 		int getNumProducers()											{ return _barracks.size() + _factories.size() + _starports.size() + _commandCenters.size(); };
 		int getNumFinishedUnit(BWAPI::UnitType type);
 		int getNumUnfinishedUnit(BWAPI::UnitType type);
