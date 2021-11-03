@@ -16,6 +16,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	std::list<BWAPI::Unit>& _bullyHunters = _infoManager.getBullyHunters();
 	std::list<BWAPI::Unit>& _repairWorkers = _infoManager.getRepairWorkers();
 	std::vector<BWAPI::Unit> mineralsNeedClearing = _infoManager.mineralsNeedClear();
+	std::map<BWAPI::Position, BWEM::Base *>	_ownedBases = _infoManager.getOwnedBases();
 	bool needDefense = _infoManager.shouldHaveDefenseSquad(true);
 
 	/*****************************************************************************
@@ -77,21 +78,24 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			}
 		}
 
-		if (numberOfEnemies && _workers.size() && _bullyHunters.size() <= numberOfEnemies * 2)
+		if (numberOfEnemies && _workers.size() && _bullyHunters.size() < numberOfEnemies * 2)
 		{
-			assignBullyHunters(_workers, _bullyHunters, numberOfEnemies);
+			assignBullyHunters(_workers, _bullyHunters, numberOfEnemies, _ownedBases);
+		}
+		else if (!numberOfEnemies)
+		{
+			for (auto hunter : _bullyHunters)
+			{
+				if (hunter && hunter->exists())
+				{
+					hunter->stop();
+				}
+			}
+			_bullyHunters.clear();
 		}
 	}
 	else if (_bullyHunters.size())
 	{
-		for (auto worker : _bullyHunters)
-		{
-			if (worker && worker->exists())
-			{
-				_workers.insert(std::pair<BWAPI::Unit, BWEM::Base *>(worker, _infoManager.getOwnedBases().begin()->second));
-			}
-		}
-
 		_bullyHunters.clear();
 	}
 
@@ -104,6 +108,11 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	// Repair for turrets
 	for (auto turret : _infoManager.getTurrets())
 	{
+		if (!turret || !turret->exists())
+		{
+			continue;
+		}
+
 		if (turret->isAttacking() || turret->isUnderAttack() || (turret->getHitPoints() < turret->getType().maxHitPoints() && !turret->isBeingConstructed()))
 		{
 			needRepair = true;
@@ -125,9 +134,6 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 							}
 						}
 
-						if (_repairWorkers.size() < 3)
-							assignRepairWorkers(_workers, _repairWorkers, turret);
-
 						break;
 					}
 
@@ -137,7 +143,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			}
 			else
 			{
-				assignRepairWorkers(_workers, _repairWorkers, turret);
+				assignRepairWorkers(_workers, _repairWorkers, turret, _ownedBases);
 			}
 		}
 	}
@@ -145,6 +151,11 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	// Repair for bunker
 	for (auto bunker : _infoManager.getBunkers())
 	{
+		if (!bunker || !bunker->exists())
+		{
+			continue;
+		}
+
 		if (bunker->isAttacking() || bunker->isUnderAttack() || (bunker->getHitPoints() < bunker->getType().maxHitPoints() && !bunker->isBeingConstructed()))
 		{
 			needRepair = true;
@@ -166,9 +177,6 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 							}
 						}
 
-						if (_repairWorkers.size() < 3)
-							assignRepairWorkers(_workers, _repairWorkers, bunker);
-
 						break;
 					}
 
@@ -185,7 +193,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			}
 			else
 			{
-				assignRepairWorkers(_workers, _repairWorkers, bunker);
+				assignRepairWorkers(_workers, _repairWorkers, bunker, _ownedBases);
 			}
 		}
 	}
@@ -194,6 +202,11 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	{
 		for (auto building : _infoManager.getInjuredBuildings())
 		{
+			if (!building || !building->exists())
+			{
+				continue;
+			}
+
 			needRepair = true;
 			if (_repairWorkers.size())
 			{
@@ -213,9 +226,6 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 							}
 						}
 
-						if (_repairWorkers.size() < 1)
-							assignRepairWorkers(_workers, _repairWorkers, building);
-
 						break;
 					}
 
@@ -228,7 +238,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			}
 			else
 			{
-				assignRepairWorkers(_workers, _repairWorkers, building);
+				assignRepairWorkers(_workers, _repairWorkers, building, _ownedBases);
 			}
 		}
 	}
@@ -237,15 +247,6 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	// If we don't need to repair, clear the assigned workers
 	if (!needRepair && _repairWorkers.size())
 	{
-		for (auto & worker : _repairWorkers)
-		{
-			if (worker && worker->exists() && _infoManager.getOwnedBases().size())
-			{
-				_workers.insert(std::pair<BWAPI::Unit, BWEM::Base *>(worker, _infoManager.getOwnedBases().begin()->second));
-				worker->move(_infoManager.getOwnedBases().begin()->first);
-			}
-		}
-
 		_repairWorkers.clear();
 	}
 
@@ -254,12 +255,15 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 		return;
 
 	// Are we expanding to an island base?
-	/*if (_infoManager.shouldIslandExpand())
+	if (_infoManager.shouldIslandExpand())
 	{
 		if (!_infoManager.getIslandBuilder())
 		{
 			for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _workers.begin(); it != _workers.end(); it++)
 			{
+				if (!it->first || !it->first->exists())
+					continue;
+
 				if (it->first->getType() != BWAPI::UnitTypes::Terran_SCV)
 				{
 					Broodwar << it->first->getType() << " found in worker list." << std::endl;
@@ -283,38 +287,41 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 		{
 			BWAPI::Unit & builder = _infoManager.getIslandBuilder();
 
-			for (auto mineral : _infoManager.getIslandSmallMinerals())
+			if (builder || builder->exists())
 			{
-				if (abs(builder->getPosition().x - mineral->getPosition().x) <= 300 && abs(builder->getPosition().y - mineral->getPosition().y) <= 300 && builder->isIdle())
+				for (auto mineral : _infoManager.getIslandSmallMinerals())
 				{
-					builder->rightClick(mineral);
-				}
-			}
-
-			if (builder->isCarryingMinerals())
-			{
-				int shortest = 9999999;
-				BWAPI::TilePosition newBase;
-				for (auto base : _infoManager.getIslandBases())
-				{
-					if (builder->getDistance(base.first) < shortest)
+					if (abs(builder->getPosition().x - mineral->getPosition().x) <= 300 && abs(builder->getPosition().y - mineral->getPosition().y) <= 300 && builder->isIdle())
 					{
-						shortest = builder->getDistance(base.first);
-						newBase = base.second->Location();
+						builder->rightClick(mineral);
 					}
 				}
 
-				builder->build(BWAPI::UnitTypes::Terran_Command_Center, newBase);
-				if (_infoManager.getReservedMinerals() >= 400)
+				if (builder->isCarryingMinerals())
 				{
-					_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() - 400);
-				}
+					int shortest = 9999999;
+					BWAPI::TilePosition newBase;
+					for (auto base : _infoManager.getIslandBases())
+					{
+						if (builder->getDistance(base.first) < shortest)
+						{
+							shortest = builder->getDistance(base.first);
+							newBase = base.second->Location();
+						}
+					}
 
-				_infoManager.setIslandExpand(false);
+					builder->build(BWAPI::UnitTypes::Terran_Command_Center, newBase);
+					if (_infoManager.getReservedMinerals() >= 400)
+					{
+						_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() - 400);
+					}
+
+					_infoManager.setIslandExpand(false);
+				}
 			}
 		}
 	}
-	else if (_infoManager.getIslandBuilder())
+	else if (_infoManager.getIslandBuilder() && _infoManager.getIslandBuilder()->exists())
 	{
 		BWAPI::Unit & builder = _infoManager.getIslandBuilder();
 
@@ -333,7 +340,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 
 			builder->build(BWAPI::UnitTypes::Terran_Command_Center, newBase);
 		}
-	}*/
+	}
 
 	// Clear out blocking minerals that are close to our command centers.
 	if (mineralsNeedClearing.size() && Broodwar->getFrameCount() > 10000)
@@ -347,7 +354,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 		}
 		else
 		{
-			assignMineralClearer(_workers, mineralsNeedClearing);
+			assignMineralClearer(_workers, mineralsNeedClearing, _ownedBases);
 		}
 	}
 	else if (_mineralClearer)
@@ -374,14 +381,19 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 
 			// Redundant check to make sure all workers are assigned to non-destroyed bases
 			bool found = false;
+			BWEM::Base * workerBase = _infoManager.getOwnedBases().begin()->second;
+
 			for (auto base : _infoManager.getOwnedBases())
 			{
 				if (it->second == base.second)
 				{
 					found = true;
+					workerBase = base.second;
 					break;
 				}
 			}
+			// If we don't find our base in our list, assign the worker to the first base in our list
+			// else we check our assignment
 			if (!found)
 			{
 				// ToDo: We still don't have a good workaround for reassigning workers with no owned bases. Will crash the bot.
@@ -389,11 +401,14 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 				if (_infoManager.getOwnedBases().size())
 					it->second = _infoManager.getOwnedBases().begin()->second;
 			}
-
-			if (it->first->isIdle() || (it->second->baseHasRefinery() && it->second->getNumGasWorkers() < 3) ||
-				(it->first->isGatheringMinerals() && !it->second->miningAssignmentExists(it->first)))
+			else if (it->first->getLastCommand().getType() == BWAPI::UnitCommandTypes::Attack_Unit && it->first->getDistance(BWAPI::Position(_infoManager.getMainPosition())) > 800)
 			{
-				it->second->checkAssignment(it->first, _infoManager.getOwnedBases(), it->second);
+				workerBase->checkAssignment(it->first, _infoManager.getOwnedBases(), it->second);
+			}
+			else if (it->first->isIdle() || (workerBase->baseHasRefinery() && workerBase->getNumGasWorkers() < 3) ||
+				(it->first->isGatheringMinerals() && !workerBase->miningAssignmentExists(it->first)))
+			{
+				workerBase->checkAssignment(it->first, _infoManager.getOwnedBases(), it->second);
 			}
 		}
 	}
@@ -452,7 +467,15 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 				if (builder->first && builder->first->exists())
 				{
 					builder->first->rightClick(building);
-					builder->second->removeAssignment(builder->first);
+
+					for (auto & base : _infoManager.getOwnedBases())
+					{
+						if (base.second == builder->second)
+						{
+							base.second->removeAssignment(builder->first);
+							break;
+						}
+					}
 				}
 				else
 				{
@@ -480,7 +503,14 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 					if (builder->first && builder->first->exists())
 					{
 						builder->first->rightClick(building);
-						builder->second->removeAssignment(builder->first);
+						for (auto & base : _infoManager.getOwnedBases())
+						{
+							if (base.second == builder->second)
+							{
+								base.second->removeAssignment(builder->first);
+								break;
+							}
+						}
 					}
 				}
 			}
@@ -494,7 +524,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	}
 }
 
-void WorkerManager::construct(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWAPI::UnitType structure, BWAPI::TilePosition targetLocation)
+void WorkerManager::construct(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWAPI::UnitType structure, BWAPI::TilePosition targetLocation, std::map<BWAPI::Position, BWEM::Base *> & _ownedBases)
 {
 	if (_workers.size())
 	{
@@ -551,12 +581,27 @@ void WorkerManager::construct(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWA
 			if (targetVisible)
 			{
 				builder->first->build(structure, targetLocation);
-				builder->second->removeAssignment(builder->first);
+
+				for (auto & base : _ownedBases)
+				{
+					if (base.second == builder->second)
+					{
+						base.second->removeAssignment(builder->first);
+						break;
+					}
+				}
 			}
 			else
 			{
 				builder->first->move(BWAPI::Position(targetLocation));
-				builder->second->removeAssignment(builder->first);
+				for (auto & base : _ownedBases)
+				{
+					if (base.second == builder->second)
+					{
+						base.second->removeAssignment(builder->first);
+						break;
+					}
+				}
 			}
 		}
 		else
@@ -609,19 +654,35 @@ void WorkerManager::construct(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWA
 				if (targetVisible)
 				{
 					builder->first->build(structure, targetLocation);
-					builder->second->removeAssignment(builder->first);
+
+					for (auto & base : _ownedBases)
+					{
+						if (base.second == builder->second)
+						{
+							base.second->removeAssignment(builder->first);
+							break;
+						}
+					}
 				}
 				else
 				{
 					builder->first->move(BWAPI::Position(targetLocation));
-					builder->second->removeAssignment(builder->first);
+
+					for (auto & base : _ownedBases)
+					{
+						if (base.second == builder->second)
+						{
+							base.second->removeAssignment(builder->first);
+							break;
+						}
+					}
 				}
 			}
 		}
 	}
 }
 
-void WorkerManager::supplyConstruction(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWAPI::TilePosition targetBuildLocation, int reservedMinerals)
+void WorkerManager::supplyConstruction(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWAPI::TilePosition targetBuildLocation, int reservedMinerals, std::map<BWAPI::Position, BWEM::Base *> & _ownedBases)
 {
 	//////////////////////////////////////////////////////////////////////////////
 	// Supply Production
@@ -684,12 +745,27 @@ void WorkerManager::supplyConstruction(std::map<BWAPI::Unit, BWEM::Base *>& _wor
 			if (targetVisible)
 			{
 				builder->first->build(supplyProviderType, targetBuildLocation);
-				builder->second->removeAssignment(builder->first);
+
+				for (auto & base : _ownedBases)
+				{
+					if (base.second == builder->second)
+					{
+						base.second->removeAssignment(builder->first);
+						break;
+					}
+				}
 			}
 			else
 			{
 				builder->first->move(BWAPI::Position(targetBuildLocation));
-				builder->second->removeAssignment(builder->first);
+				for (auto & base : _ownedBases)
+				{
+					if (base.second == builder->second)
+					{
+						base.second->removeAssignment(builder->first);
+						break;
+					}
+				}
 			}
 		}
 		else
@@ -742,19 +818,35 @@ void WorkerManager::supplyConstruction(std::map<BWAPI::Unit, BWEM::Base *>& _wor
 				if (targetVisible)
 				{
 					builder->first->build(supplyProviderType, targetBuildLocation);
-					builder->second->removeAssignment(builder->first);
+
+					for (auto & base : _ownedBases)
+					{
+						if (base.second == builder->second)
+						{
+							base.second->removeAssignment(builder->first);
+							break;
+						}
+					}
 				}
 				else
 				{
 					builder->first->move(BWAPI::Position(targetBuildLocation));
-					builder->second->removeAssignment(builder->first);
+
+					for (auto & base : _ownedBases)
+					{
+						if (base.second == builder->second)
+						{
+							base.second->removeAssignment(builder->first);
+							break;
+						}
+					}
 				}
 			}
 		}
 	}
 }
 
-void insanitybot::WorkerManager::assignBullyHunters(std::map<BWAPI::Unit, BWEM::Base*>& _workers, std::list<BWAPI::Unit>& _bullyHunters, int numberOfEnemies)
+void insanitybot::WorkerManager::assignBullyHunters(std::map<BWAPI::Unit, BWEM::Base*>& _workers, std::list<BWAPI::Unit>& _bullyHunters, int numberOfEnemies, std::map<BWAPI::Position, BWEM::Base *> & _ownedBases)
 {
 	if (_workers.size())
 	{
@@ -768,19 +860,59 @@ void insanitybot::WorkerManager::assignBullyHunters(std::map<BWAPI::Unit, BWEM::
 				return;
 			}
 
+			BWAPI::Broodwar->setLocalSpeed(10);
 			_bullyHunters.push_back(hunter->first);
-			hunter->second->removeAssignment(hunter->first);
+
+			for (auto & base : _ownedBases)
+			{
+				if (base.second == hunter->second)
+				{
+					/*BWAPI::Broodwar << "base min before: " << base.second->getNumMineralWorkers() << std::endl;
+					BWAPI::Broodwar << "base gas before: " << base.second->getNumGasWorkers() << std::endl;
+					base.second->removeAssignment(hunter->first);
+					BWAPI::Broodwar << "base min after: " << base.second->getNumMineralWorkers() << std::endl;
+					BWAPI::Broodwar << "base gas after: " << base.second->getNumGasWorkers() << std::endl;*/
+
+					for (auto & assignment : base.second->getMineralAssignments())
+					{
+						for (auto & mineralWorker : assignment.second)
+						{
+							if (mineralWorker == hunter->first)
+							{
+								assignment.second.erase(mineralWorker);
+								goto outOfFor;
+							}
+						}
+					}
+
+					for (auto & assignment : base.second->getRefineryAssignments())
+					{
+						for (auto & gasWorker : assignment.second)
+						{
+							if (gasWorker == hunter->first)
+							{
+								assignment.second.erase(gasWorker);
+								goto outOfFor;
+							}
+						}
+					}
+
+					outOfFor:
+					break;
+				}
+			}
+
 			_workers.erase(hunter);
 		}
 	}
 
 	if (_bullyHunters.size() < numberOfEnemies * 2 && _workers.size())
 	{
-		assignBullyHunters(_workers, _bullyHunters, numberOfEnemies);
+		assignBullyHunters(_workers, _bullyHunters, numberOfEnemies, _ownedBases);
 	}
 }
 
-void insanitybot::WorkerManager::assignRepairWorkers(std::map<BWAPI::Unit, BWEM::Base *>& _workers, std::list<BWAPI::Unit>& _repairWorkers, BWAPI::Unit building)
+void insanitybot::WorkerManager::assignRepairWorkers(std::map<BWAPI::Unit, BWEM::Base *>& _workers, std::list<BWAPI::Unit>& _repairWorkers, BWAPI::Unit building, std::map<BWAPI::Position, BWEM::Base *> & _ownedBases)
 {
 	if (_workers.size() > 3)
 	{
@@ -809,7 +941,16 @@ void insanitybot::WorkerManager::assignRepairWorkers(std::map<BWAPI::Unit, BWEM:
 		if (repairer->first && repairer->first->exists())
 		{
 			_repairWorkers.push_back(repairer->first);
-			repairer->second->removeAssignment(repairer->first);
+
+			for (auto & base : _ownedBases)
+			{
+				if (base.second == repairer->second)
+				{
+					base.second->removeAssignment(repairer->first);
+					break;
+				}
+			}
+
 			_workers.erase(repairer);
 		}
 	}
@@ -820,11 +961,11 @@ void insanitybot::WorkerManager::assignRepairWorkers(std::map<BWAPI::Unit, BWEM:
 
 	if ((building->getType() == BWAPI::UnitTypes::Terran_Bunker || building->getType() == BWAPI::UnitTypes::Terran_Missile_Turret) && _repairWorkers.size() < 3)
 	{
-		assignRepairWorkers(_workers, _repairWorkers, building);
+		assignRepairWorkers(_workers, _repairWorkers, building, _ownedBases);
 	}
 }
 
-void insanitybot::WorkerManager::assignMineralClearer(std::map<BWAPI::Unit, BWEM::Base*>& _workers, std::vector<BWAPI::Unit> needClearing)
+void insanitybot::WorkerManager::assignMineralClearer(std::map<BWAPI::Unit, BWEM::Base*>& _workers, std::vector<BWAPI::Unit> needClearing, std::map<BWAPI::Position, BWEM::Base *> & _ownedBases)
 {
 	if (_workers.size() && needClearing.size())
 	{
@@ -853,8 +994,59 @@ void insanitybot::WorkerManager::assignMineralClearer(std::map<BWAPI::Unit, BWEM
 		if (clearer->first->exists())
 		{
 			_mineralClearer = clearer->first;
-			clearer->second->removeAssignment(clearer->first);
+
+			for (auto & base : _ownedBases)
+			{
+				if (base.second == clearer->second)
+				{
+					base.second->removeAssignment(clearer->first);
+					break;
+				}
+			}
+
 			_workers.erase(clearer);
+		}
+	}
+}
+
+void insanitybot::WorkerManager::handleIslandConstruction(std::map<BWAPI::Unit, BWEM::Base*>& _islandWorkers, std::map<BWAPI::Position, BWEM::Base *> & _ownedIslandBases, std::list<BWAPI::Unit> _engibays, BWAPI::TilePosition targetLocation)
+{
+	for (auto base : _ownedIslandBases)
+	{
+		if (base.second->baseHasGeyser() && !base.second->baseHasRefinery())
+		{
+			for (auto worker : _islandWorkers)
+			{
+				if (worker.second == base.second && worker.first->isGatheringMinerals())
+				{
+					if (BWAPI::Broodwar->self()->minerals() >= 100)
+					{
+						worker.first->build(BWAPI::UnitTypes::Terran_Refinery, base.second->Geysers().front()->TopLeft());
+					}
+					break;
+				}
+				else if (worker.second == base.second && base.second->numTurretsHere() < 3 && worker.first->isGatheringGas() && _engibays.size())
+				{
+					if (BWAPI::Broodwar->self()->minerals() >= 75)
+					{
+						worker.first->build(BWAPI::UnitTypes::Terran_Missile_Turret, targetLocation);
+					}
+				}
+			}
+		}
+		else if (base.second->numTurretsHere() < 3 && _engibays.size())
+		{
+			for (auto worker : _islandWorkers)
+			{
+				if (worker.second == base.second && worker.first->isGatheringGas())
+				{
+					if (BWAPI::Broodwar->self()->minerals() >= 75)
+					{
+						worker.first->build(BWAPI::UnitTypes::Terran_Missile_Turret, targetLocation);
+						break;
+					}
+				}
+			}
 		}
 	}
 }

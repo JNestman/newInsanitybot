@@ -59,9 +59,10 @@ void GameCommander::infoText()
 	Broodwar->drawTextScreen(200, 80, "EnemyBases: %d", _informationManager.getEnemyBases().size());
 	Broodwar->drawTextScreen(200, 90, "EnemyStructures: %d", _informationManager.getEnemyBuildingPositions().size());
 	_unitManager.infoText();
-	Broodwar->drawTextScreen(50, 30, "needDefense: %d", _informationManager.shouldHaveDefenseSquad(false));
-	Broodwar->drawTextScreen(50, 40, "bullyHunters: %d", _informationManager.getBullyHunters().size());
-	Broodwar->drawTextScreen(50, 50, "numRefineries: %d", _informationManager.getRefineries().size());
+	Broodwar->drawTextScreen(50, 30, "bullyHunters: %d", _informationManager.getBullyHunters().size());
+	Broodwar->drawTextScreen(50, 40, "isOneBasePlay: %d", _informationManager.isOneBasePlay(_informationManager.getStrategy()));
+	Broodwar->drawTextScreen(50, 50, "isTwoBasePlay: %d", _informationManager.isTwoBasePlay(_informationManager.getStrategy()));
+	Broodwar->drawTextScreen(50, 60, "isExpanding: %d", _informationManager.areExpanding());
 
 	Broodwar->drawCircleMap(_informationManager.getMainChokePos(), 10, BWAPI::Colors::Orange);
 	Broodwar->drawCircleMap(_informationManager.getNaturalChokePos(), 10, BWAPI::Colors::Red);
@@ -81,6 +82,32 @@ void GameCommander::infoText()
 			Broodwar->drawCircleMap(BWAPI::Position((_informationManager.getEnemyNaturalPos().x + BWAPI::Position(center).x) / 2, (_informationManager.getEnemyNaturalPos().y + BWAPI::Position(center).y) / 2), 40, BWAPI::Colors::Purple);
 		}
 	}*/
+
+	for (auto base : _informationManager.getOwnedBases())
+	{
+		Broodwar->drawTextMap(base.first, "workers wanted: %d", base.second->numWorkersWantedHere());
+		Broodwar->drawTextMap(base.first + BWAPI::Position(0, 10), "mineral here:   %d", base.second->getNumMineralWorkers());
+		Broodwar->drawTextMap(base.first + BWAPI::Position(0, 20), "turrets here:   %d", base.second->numTurretsHere());
+
+		if (base.second->baseHasRefinery())
+		{
+			Broodwar->drawTextMap(base.second->getRefineryPos(), "Gas: %d", base.second->getNumGasWorkers());
+		}
+		
+		for (auto assignments : base.second->getRefineryAssignments())
+		{
+			if (assignments.second.size())
+			{
+				for (auto worker : assignments.second)
+				{
+					if (worker && worker->exists())
+					{
+						Broodwar->drawTextMap(worker->getPosition(), "Gas");
+					}
+				}
+			}
+		}
+	}
 }
 
 GameCommander & GameCommander::Instance()

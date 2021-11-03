@@ -29,7 +29,7 @@ void UnitManager::update(InformationManager & _infoManager)
 		nextUp = squadScoutLocation.front();
 	}
 
-	if (_infoManager.getStrategy() == "SKTerran")
+	if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
 	{	// Loop through our marines and make sure they are assigned to a squad
 		for (auto & marine : _infoManager.getMarines())
 		{
@@ -166,7 +166,7 @@ void UnitManager::update(InformationManager & _infoManager)
 				BWAPI::Position closest = _infoManager.getNaturalChokePos();
 				int distance = 99999;
 				std::list<Squad> _squads;
-				if (_infoManager.getStrategy() == "SKTerran")
+				if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
 				{
 					_squads = _infantrySquads;
 				}
@@ -201,7 +201,7 @@ void UnitManager::update(InformationManager & _infoManager)
 				BWAPI::Position closest = _infoManager.getNaturalChokePos();
 				int distance = 99999;
 				std::list<Squad> _squads;
-				if (_infoManager.getStrategy() == "SKTerran")
+				if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
 				{
 					_squads = _infantrySquads;
 				}
@@ -235,7 +235,7 @@ void UnitManager::update(InformationManager & _infoManager)
 				BWAPI::Position closest = _infoManager.getNaturalChokePos();
 				int distance = 99999;
 				std::list<Squad> _squads;
-				if (_infoManager.getStrategy() == "SKTerran")
+				if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
 				{
 					_squads = _infantrySquads;
 				}
@@ -347,7 +347,7 @@ void UnitManager::update(InformationManager & _infoManager)
 			{
 				if (BWAPI::Broodwar->getFrameCount() - squad->getDefenseLastNeededFrame() > 1000)
 				{
-					if (_infoManager.getStrategy() == "SKTerran")
+					if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
 					{
 						squad->setHaveGathered(false);
 						_infantrySquads.push_back(*squad);
@@ -365,7 +365,7 @@ void UnitManager::update(InformationManager & _infoManager)
 			}
 			else if (target->getPlayer() == BWAPI::Broodwar->enemy())
 			{
-				if (_infoManager.getStrategy() == "SKTerran")
+				if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
 				{
 					// Send mostly full squads to engage
 					if (squad->infantrySquadSize() >= 10)
@@ -470,7 +470,32 @@ void UnitManager::update(InformationManager & _infoManager)
 			else
 			{
 				if (_infoManager.getBunkers().size())
-					squad.gather(_infoManager.getBunkers().front()->getPosition());
+				{
+					if (_infoManager.getBunkers().size() == 1 && !_infoManager.areExpanding())
+					{
+						squad.gather(_infoManager.getBunkers().front()->getPosition());
+					}
+					else if (_infoManager.areExpanding() && _infoManager.getOwnedBases().size() < 2 && _infoManager.getBunkers().size() < 2)
+					{
+						BWAPI::Position halfway = BWAPI::Position((BWAPI::Position(_infoManager.getNatPosition()).x + _infoManager.getNaturalChokePos().x) / 2, (BWAPI::Position(_infoManager.getNatPosition()).y + _infoManager.getNaturalChokePos().y) / 2);
+						squad.gather(halfway);
+					}
+					else
+					{
+						BWAPI::Position point = _infoManager.getBunkers().front()->getPosition();
+						int shortestDistance = _infoManager.getBunkers().front()->getDistance(_infoManager.getNaturalChokePos());
+						for (auto bunker : _infoManager.getBunkers())
+						{
+							if (bunker->getDistance(_infoManager.getNaturalChokePos()) < shortestDistance)
+							{
+								point = bunker->getPosition();
+								shortestDistance = bunker->getDistance(_infoManager.getNaturalChokePos());
+							}
+						}
+
+						squad.gather(point);
+					}
+				}
 				else
 				{
 					BWAPI::Position halfway = BWAPI::Position((BWAPI::Position(_infoManager.getNatPosition()).x + _infoManager.getNaturalChokePos().x) / 2, (BWAPI::Position(_infoManager.getNatPosition()).y + _infoManager.getNaturalChokePos().y) / 2);
@@ -544,7 +569,27 @@ void UnitManager::update(InformationManager & _infoManager)
 			else
 			{
 				if (_infoManager.getBunkers().size())
-					squad.gather(_infoManager.getBunkers().front()->getPosition());
+				{
+					if (_infoManager.getBunkers().size() == 1)
+					{
+						squad.gather(_infoManager.getBunkers().front()->getPosition());
+					}
+					else
+					{
+						BWAPI::Position point = _infoManager.getBunkers().front()->getPosition();
+						int shortestDistance = _infoManager.getBunkers().front()->getDistance(_infoManager.getNaturalChokePos());
+						for (auto bunker : _infoManager.getBunkers())
+						{
+							if (bunker->getDistance(_infoManager.getNaturalChokePos()) < shortestDistance)
+							{
+								point = bunker->getPosition();
+								shortestDistance = bunker->getDistance(_infoManager.getNaturalChokePos());
+							}
+						}
+
+						squad.gather(point);
+					}
+				}
 				else
 				{
 					BWAPI::Position halfway = BWAPI::Position((BWAPI::Position(_infoManager.getNatPosition()).x + _infoManager.getNaturalChokePos().x) / 2, (BWAPI::Position(_infoManager.getNatPosition()).y + _infoManager.getNaturalChokePos().y) / 2);
@@ -652,7 +697,7 @@ void UnitManager::update(InformationManager & _infoManager)
 				BWAPI::Position closest = _infoManager.getNaturalChokePos();
 				int distance = 99999;
 				std::list<Squad> _squads;
-				if (_infoManager.getStrategy() == "SKTerran")
+				if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
 				{
 					_squads = _infantrySquads;
 				}
@@ -686,7 +731,7 @@ void UnitManager::update(InformationManager & _infoManager)
 				BWAPI::Position closest = _infoManager.getNaturalChokePos();
 				int distance = 99999;
 				std::list<Squad> _squads;
-				if (_infoManager.getStrategy() == "SKTerran")
+				if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
 				{
 					_squads = _infantrySquads;
 				}
@@ -720,7 +765,7 @@ void UnitManager::update(InformationManager & _infoManager)
 				BWAPI::Position closest = _infoManager.getNaturalChokePos();
 				int distance = 99999;
 				std::list<Squad> _squads;
-				if (_infoManager.getStrategy() == "SKTerran")
+				if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
 				{
 					_squads = _infantrySquads;
 				}
@@ -825,7 +870,7 @@ bool insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio)
 				}
 			}
 
-			if (_infantrySquads.size() < 10)
+			if (_infantrySquads.size() < 12)
 			{
 				_infantrySquads.push_back(Squad(unassigned));
 				return true;
@@ -991,7 +1036,7 @@ void insanitybot::UnitManager::infoText()
 	BWAPI::Broodwar->drawTextScreen(200, 100, "numInfSquads: %d", _infantrySquads.size());
 	BWAPI::Broodwar->drawTextScreen(200, 110, "numMecSquads: %d", _mechSquads.size());
 
-	std::vector<std::string> infantrySquadCallSigns{ "Overlord", "Hunter 1-1", "Hunter 1-2", "Hunter 1-3", "Hunter 1-4", "Hunter 1-5", "Hunter 1-6", "Hunter 1-7", "Hunter 1-8", "Hunter 1-9", "Hunter 1-10" };
+	std::vector<std::string> infantrySquadCallSigns{ "Overlord", "Hunter 1-1", "Hunter 1-2", "Hunter 1-3", "Hunter 1-4", "Hunter 1-5", "Hunter 1-6", "Hunter 1-7", "Hunter 1-8", "Hunter 1-9", "Hunter 1-10", "Hunter 1 - 11", "Hunter 1-12" };
 	std::vector<std::string> mechSquadCallSigns{ "Overlord", "Broadsword 1-1", "Broadsword 1-2", "Broadsword 1-3", "Broadsword 1-4", "Broadsword 1-5", "Broadsword 1-6", "Broadsword 1-7", "Broadsword 1-8", "Broadsword 1-9", "Broadsword 1-10"
 	, "Broadsword 1-11", "Broadsword 1-12", "Broadsword 1-13", "Broadsword 1-14", "Broadsword 1-15", "Broadsword 1-16", "Broadsword 1-17", "Broadsword 1-18", "Broadsword 1-19"};
 	std::vector<std::string> defensiveCallsings{ "Overlord", "Aegis 1-1", "Aegis 1-2", "Aegis 1-3", "Aegis 1-4", "Aegis 1-5", "Aegis 1-6", "Aegis 1-7", "Aegis 1-8", "Aegis 1-9" };

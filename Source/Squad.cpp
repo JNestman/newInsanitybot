@@ -745,9 +745,36 @@ void insanitybot::Squad::gather(BWAPI::Position gatherPoint)
 				}
 				else if (!closeEnough(gatherPoint, tank->first->getPosition()))
 				{
-					if (tank->first->isSieged())
+					int targetDistance = 999999;
+					BWAPI::Unit closestTargetForTank;
+					for (auto enemy : BWAPI::Broodwar->enemy()->getUnits())
+					{
+						if (!enemy)
+							continue;
+
+						if (enemy->exists() && tank->first->getDistance(enemy) < targetDistance && !enemy->isFlying())
+						{
+							targetDistance = tank->first->getDistance(enemy);
+							closestTargetForTank = enemy;
+						}
+					}
+
+					if (targetDistance <= BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode.groundWeapon().maxRange() - 8)
+					{
+						if (!tank->first->isSieged())
+							tank->first->siege();
+
+						tank->second = BWAPI::Broodwar->getFrameCount();
+					}
+
+					if (tank->first->isSieged() && BWAPI::Broodwar->getFrameCount() - tank->second > 400)
+					{
 						tank->first->unsiege();
-					tank->first->attack(gatherPoint);
+					}
+					else if (!tank->first->isSieged())
+					{
+						tank->first->attack(gatherPoint);
+					}
 				}
 			}
 			else

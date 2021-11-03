@@ -101,6 +101,8 @@ void insanitybotModule::onFrame()
 		// Display the game frame rate as text in the upper left area of the screen
 		Broodwar->drawTextScreen(200, 0, "FPS: %d", Broodwar->getFPS());
 		Broodwar->drawTextScreen(200, 10, "Average FPS: %f", Broodwar->getAverageFPS());
+		//if (BWAPI::Broodwar->getFrameCount() % 100 == 0)
+		//	Broodwar->sendText("Frame: %d", BWAPI::Broodwar->getFrameCount());
 		commander.infoText();
 
 		// Return if the game is a replay or is paused

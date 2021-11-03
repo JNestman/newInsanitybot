@@ -108,6 +108,9 @@ public:
 	void clearAssignmentList();
 	void cleanUpZombieTasks();
 
+	std::map<BWAPI::Unit, BWAPI::Unitset> & getRefineryAssignments() { return refinery_Assignments; };
+	std::map<Mineral *, BWAPI::Unitset> & getMineralAssignments() { return mineral_Assignments; };
+
 	void setBaseRefinery(BWAPI::Unit refinery);
 	void setbaseCommandCenter(BWAPI::Unit commandCenter);
 	BWAPI::Unit getBaseCommandCenter() { return baseCommandCenter; }
@@ -117,7 +120,7 @@ public:
 
 	int numTurretsHere() { return turrets.size(); };
 	void addTurrets(BWAPI::Unit additionalTurret) { turrets.insert(additionalTurret); };
-	bool onTurretDestroy(BWAPI::Unit destroyed);
+	bool onTurretDestroy();
 
 private:
 	Map *							GetMap() const				{ return m_pMap; }

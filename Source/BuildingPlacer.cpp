@@ -325,81 +325,6 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 	// Our location we will build at
 	BWAPI::TilePosition desiredLocation;
 
-	/***************************************************************************************************
-	* Trying building placement things
-	****************************************************************************************************/
-	// Check if this is a production building, if it is, prioritize its placement to be at the front of our base
-	/*if (building.tileSize() == BWAPI::UnitTypes::Terran_Barracks.tileSize())
-	{
-		BWAPI::Position halfwayPoint = BWAPI::Position((BWAPI::Position(_infoManager.getMainPosition()).x + _infoManager.getMainChokePos().x) / 2, (BWAPI::Position(_infoManager.getMainPosition()).y + _infoManager.getMainChokePos().y) / 2);
-		desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(halfwayPoint));
-	}
-	else if (building.tileSize() == BWAPI::UnitTypes::Terran_Supply_Depot.tileSize())
-	{
-		// Top of the map
-		if (_infoManager.getMainPosition().y < 30)
-		{
-			BWAPI::Position edge = BWAPI::Position((BWAPI::Position(_infoManager.getMainPosition()).x), 0);
-
-			if (BWAPI::Broodwar->mapHash() == "de2ada75fbc741cfa261ee467bf6416b10f9e301") // Python
-			{
-				edge += BWAPI::Position(100, 0);
-			}
-
-			desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(edge));
-		}
-		// Bottom of Map
-		else if (BWAPI::Broodwar->mapHeight() - _infoManager.getMainPosition().y < 30)
-		{
-			BWAPI::TilePosition temp = BWAPI::TilePosition(BWAPI::Broodwar->mapWidth(), BWAPI::Broodwar->mapHeight());
-			BWAPI::Position edge = BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(temp).y);
-
-			if (BWAPI::Broodwar->mapHash() == "de2ada75fbc741cfa261ee467bf6416b10f9e301") // Python
-			{
-				edge += BWAPI::Position(-300, 0);
-			}
-
-			desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(edge));
-		}
-		// Left side of map
-		else if (_infoManager.getMainPosition().x < 30)
-		{
-			BWAPI::Position edge = BWAPI::Position(0, (BWAPI::Position(_infoManager.getMainPosition()).y));
-
-			if (BWAPI::Broodwar->mapHash() == "de2ada75fbc741cfa261ee467bf6416b10f9e301") // Python
-			{
-				edge += BWAPI::Position(0, 100);
-			}
-
-			desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(edge));
-		}
-		// Right side of map
-		else if (BWAPI::Broodwar->mapWidth() - _infoManager.getMainPosition().x < 30)
-		{
-			BWAPI::TilePosition temp = BWAPI::TilePosition(BWAPI::Broodwar->mapWidth(), BWAPI::Broodwar->mapHeight());
-			BWAPI::Position edge = BWAPI::Position(BWAPI::Position(temp).x, BWAPI::Position(_infoManager.getMainPosition()).y);
-
-			if (BWAPI::Broodwar->mapHash() == "de2ada75fbc741cfa261ee467bf6416b10f9e301") // Python
-			{
-				edge += BWAPI::Position(0, -100);
-			}
-			
-			desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(edge));
-		}
-		else
-		{
-			desiredLocation = BWAPI::Broodwar->getBuildLocation(building, _infoManager.getMainPosition());
-		}
-	}
-	// If it is not, grab a standard location
-	else
-	{
-		desiredLocation = BWAPI::Broodwar->getBuildLocation(building, _infoManager.getMainPosition());
-	}*/
-	/***************************************************************************************************
-	* END TRYING
-	****************************************************************************************************/
-
 	// Check if it is an expansion
 	if (building.isResourceDepot())
 	{
@@ -431,10 +356,25 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 	//Bunkers go to choke positions
 	else if (building == BWAPI::UnitTypes::Terran_Bunker)
 	{
-		if (BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getNaturalChokePos())))
-			desiredLocation = BWAPI::TilePosition(_infoManager.getNaturalChokePos());
+		if (_infoManager.isOneBasePlay(_infoManager.getStrategy()))
+		{
+			desiredLocation = BWAPI::Broodwar->getBuildLocation(BWAPI::UnitTypes::Terran_Bunker, _infoManager.getMainBunkerPos());
+		}
 		else
+		{
+			if (BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getNatBunkerPos())))
+				desiredLocation = _infoManager.getNatBunkerPos();
+			else
+				desiredLocation = BWAPI::Broodwar->getBuildLocation(BWAPI::UnitTypes::Terran_Bunker, _infoManager.getNatBunkerPos());
+		}
+		/*if (BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getNaturalChokePos())))
+		{
+			desiredLocation = BWAPI::TilePosition(_infoManager.getNaturalChokePos());
+		}
+		else
+		{
 			desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(_infoManager.getNaturalChokePos()));
+		}*/
 
 		return desiredLocation;
 	}
@@ -445,9 +385,9 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 		{
 			if (base.second->baseHasGeyser())
 			{
+				// ToDo: This check doesn't catch dead refineries that haven't been caught elsewhere
 				if (!base.second->baseHasRefinery())
 				{
-					//desiredLocation = BWAPI::Broodwar->getBuildLocation(building, base.second->Location());
 					desiredLocation = base.second->Geysers().front()->TopLeft();
 				}
 			}
