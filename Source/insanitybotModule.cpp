@@ -1,7 +1,5 @@
 #include "insanitybotModule.h"
 #include "BWEM1.4.1/src/bwem.h"
-#include <iostream>
-#include <list>
 
 using namespace BWAPI;
 using namespace Filter;
@@ -70,7 +68,7 @@ void insanitybotModule::onStart()
 
 			Broodwar << "glhf" << std::endl;
 
-			Broodwar->setLocalSpeed(10);
+			Broodwar->setLocalSpeed(5);
 
 			commander.initialize();
 		}
@@ -103,6 +101,8 @@ void insanitybotModule::onFrame()
 		// Display the game frame rate as text in the upper left area of the screen
 		Broodwar->drawTextScreen(200, 0, "FPS: %d", Broodwar->getFPS());
 		Broodwar->drawTextScreen(200, 10, "Average FPS: %f", Broodwar->getAverageFPS());
+		//if (BWAPI::Broodwar->getFrameCount() % 100 == 0)
+		//	Broodwar->sendText("Frame: %d", BWAPI::Broodwar->getFrameCount());
 		commander.infoText();
 
 		// Return if the game is a replay or is paused
@@ -135,7 +135,6 @@ void insanitybotModule::onSendText(std::string text)
 
 	// Make sure to use %s and pass the text as a parameter,
 	// otherwise you may run into problems when you use the %(percent) character!
-
 }
 
 void insanitybotModule::onReceiveText(BWAPI::Player player, std::string text)
@@ -153,7 +152,6 @@ void insanitybotModule::onPlayerLeft(BWAPI::Player player)
 
 void insanitybotModule::onNukeDetect(BWAPI::Position target)
 {
-
   // Check if the target is a valid position
   if ( target )
   {
@@ -199,10 +197,6 @@ void insanitybotModule::onUnitCreate(BWAPI::Unit unit)
       Broodwar->sendText("%.2d:%.2d: %s creates a %s", minutes, seconds, unit->getPlayer()->getName().c_str(), unit->getType().c_str());
     }
   }
-  else
-  {
-	  commander.onUnitCreate(unit);
-  }
 }
 
 void insanitybotModule::onUnitDestroy(BWAPI::Unit unit)
@@ -247,5 +241,4 @@ void insanitybotModule::onSaveGame(std::string gameName)
 
 void insanitybotModule::onUnitComplete(BWAPI::Unit unit)
 {
-
 }

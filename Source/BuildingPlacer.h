@@ -30,7 +30,7 @@ namespace insanitybot
 		bool	canBuildWithSpace(const BWAPI::TilePosition & position, const BWAPI::UnitType & b, int extraSpace) const;
 
 		
-		BWAPI::TilePosition getDesiredLocation(BWAPI::UnitType building, InformationManager & _infoManager);
+		BWAPI::TilePosition getDesiredLocation(BWAPI::UnitType building, InformationManager & _infoManager, std::list<BWAPI::TilePosition>);
 		BWAPI::TilePosition getSupplyLocation(BWAPI::UnitType building, InformationManager & _infoManager);
 		BWAPI::TilePosition getTurretLocation(InformationManager & _infoManager);
 

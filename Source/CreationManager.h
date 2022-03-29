@@ -4,7 +4,6 @@
 
 #include "BWEM1.4.1/src/bwem.h"
 #include <BWAPI.h>
-#include <list>
 #include "WorkerManager.h"
 #include "BuildingPlacer.h"
 #include "InformationManager.h"

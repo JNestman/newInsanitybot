@@ -320,85 +320,10 @@ bool BuildingPlacer::freeOnAllSides(BWAPI::Unit building) const
 		freeOnBottom(building->getTilePosition(), building->getType());
 }
 
-BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building, InformationManager & _infoManager)
+BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building, InformationManager & _infoManager, std::list<BWAPI::TilePosition> takenPositions)
 {	
 	// Our location we will build at
 	BWAPI::TilePosition desiredLocation;
-
-	/***************************************************************************************************
-	* Trying building placement things
-	****************************************************************************************************/
-	// Check if this is a production building, if it is, prioritize its placement to be at the front of our base
-	/*if (building.tileSize() == BWAPI::UnitTypes::Terran_Barracks.tileSize())
-	{
-		BWAPI::Position halfwayPoint = BWAPI::Position((BWAPI::Position(_infoManager.getMainPosition()).x + _infoManager.getMainChokePos().x) / 2, (BWAPI::Position(_infoManager.getMainPosition()).y + _infoManager.getMainChokePos().y) / 2);
-		desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(halfwayPoint));
-	}
-	else if (building.tileSize() == BWAPI::UnitTypes::Terran_Supply_Depot.tileSize())
-	{
-		// Top of the map
-		if (_infoManager.getMainPosition().y < 30)
-		{
-			BWAPI::Position edge = BWAPI::Position((BWAPI::Position(_infoManager.getMainPosition()).x), 0);
-
-			if (BWAPI::Broodwar->mapHash() == "de2ada75fbc741cfa261ee467bf6416b10f9e301") // Python
-			{
-				edge += BWAPI::Position(100, 0);
-			}
-
-			desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(edge));
-		}
-		// Bottom of Map
-		else if (BWAPI::Broodwar->mapHeight() - _infoManager.getMainPosition().y < 30)
-		{
-			BWAPI::TilePosition temp = BWAPI::TilePosition(BWAPI::Broodwar->mapWidth(), BWAPI::Broodwar->mapHeight());
-			BWAPI::Position edge = BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(temp).y);
-
-			if (BWAPI::Broodwar->mapHash() == "de2ada75fbc741cfa261ee467bf6416b10f9e301") // Python
-			{
-				edge += BWAPI::Position(-300, 0);
-			}
-
-			desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(edge));
-		}
-		// Left side of map
-		else if (_infoManager.getMainPosition().x < 30)
-		{
-			BWAPI::Position edge = BWAPI::Position(0, (BWAPI::Position(_infoManager.getMainPosition()).y));
-
-			if (BWAPI::Broodwar->mapHash() == "de2ada75fbc741cfa261ee467bf6416b10f9e301") // Python
-			{
-				edge += BWAPI::Position(0, 100);
-			}
-
-			desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(edge));
-		}
-		// Right side of map
-		else if (BWAPI::Broodwar->mapWidth() - _infoManager.getMainPosition().x < 30)
-		{
-			BWAPI::TilePosition temp = BWAPI::TilePosition(BWAPI::Broodwar->mapWidth(), BWAPI::Broodwar->mapHeight());
-			BWAPI::Position edge = BWAPI::Position(BWAPI::Position(temp).x, BWAPI::Position(_infoManager.getMainPosition()).y);
-
-			if (BWAPI::Broodwar->mapHash() == "de2ada75fbc741cfa261ee467bf6416b10f9e301") // Python
-			{
-				edge += BWAPI::Position(0, -100);
-			}
-			
-			desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(edge));
-		}
-		else
-		{
-			desiredLocation = BWAPI::Broodwar->getBuildLocation(building, _infoManager.getMainPosition());
-		}
-	}
-	// If it is not, grab a standard location
-	else
-	{
-		desiredLocation = BWAPI::Broodwar->getBuildLocation(building, _infoManager.getMainPosition());
-	}*/
-	/***************************************************************************************************
-	* END TRYING
-	****************************************************************************************************/
 
 	// Check if it is an expansion
 	if (building.isResourceDepot())
@@ -431,10 +356,31 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 	//Bunkers go to choke positions
 	else if (building == BWAPI::UnitTypes::Terran_Bunker)
 	{
-		if (BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getNaturalChokePos())))
-			desiredLocation = BWAPI::TilePosition(_infoManager.getNaturalChokePos());
+		if (_infoManager.isOneBasePlay(_infoManager.getStrategy()))
+		{
+			bool bunkerSpotBuildable = BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos())) &&
+				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 0)) &&
+				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(0, 1)) &&
+				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 1));
+
+			if (bunkerSpotBuildable)
+				desiredLocation = _infoManager.getMainBunkerPos();
+			else
+				desiredLocation = getPositionNear(BWAPI::UnitTypes::Terran_Bunker, _infoManager.getMainBunkerPos(), _infoManager.getStrategy());
+		}
 		else
-			desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(_infoManager.getNaturalChokePos()));
+		{
+			// For some reason, this behavior leads to better bunker placement in the natural.
+			bool bunkerSpotBuildable = BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos())); /*&&
+				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 0)) &&
+				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(0, 1)) &&
+				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 1));*/
+
+			if (bunkerSpotBuildable)
+				desiredLocation = _infoManager.getNatBunkerPos();
+			else
+				desiredLocation = BWAPI::Broodwar->getBuildLocation(BWAPI::UnitTypes::Terran_Bunker, _infoManager.getNatBunkerPos());
+		}
 
 		return desiredLocation;
 	}
@@ -445,9 +391,9 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 		{
 			if (base.second->baseHasGeyser())
 			{
+				// ToDo: This check doesn't catch dead refineries that haven't been caught elsewhere
 				if (!base.second->baseHasRefinery())
 				{
-					//desiredLocation = BWAPI::Broodwar->getBuildLocation(building, base.second->Location());
 					desiredLocation = base.second->Geysers().front()->TopLeft();
 				}
 			}
@@ -475,32 +421,60 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 		{
 			// Left.
 			tile = unit->getTilePosition() + BWAPI::TilePosition(-building.tileWidth(), 0);
+			bool taken = false;
+			for (auto tileTaken : takenPositions)
+			{
+				if (tileTaken == tile)
+					taken = true;
+			}
 			if (canBuildWithSpace(tile, building, 0) &&
-				freeOnLeft(tile, building))
+				freeOnLeft(tile, building) &&
+				!taken)
 			{
 				return tile;
 			}
 
 			// Right.
 			tile = unit->getTilePosition() + BWAPI::TilePosition(building.tileWidth(), 0);
+			taken = false;
+			for (auto tileTaken : takenPositions)
+			{
+				if (tileTaken == tile)
+					taken = true;
+			}
 			if (canBuildWithSpace(tile, building, 0) &&
-				freeOnRight(tile, building))
+				freeOnRight(tile, building) &&
+				!taken)
 			{
 				return tile;
 			}
 
 			// Above.
 			tile = unit->getTilePosition() + BWAPI::TilePosition(0, -building.tileHeight());
+			taken = false;
+			for (auto tileTaken : takenPositions)
+			{
+				if (tileTaken == tile)
+					taken = true;
+			}
 			if (canBuildWithSpace(tile, building, 0) &&
-				freeOnTop(tile, building))
+				freeOnTop(tile, building) &&
+				!taken)
 			{
 				return tile;
 			}
 
 			// Below.
 			tile = unit->getTilePosition() + BWAPI::TilePosition(0, unit->getType().tileHeight());
+			taken = false;
+			for (auto tileTaken : takenPositions)
+			{
+				if (tileTaken == tile)
+					taken = true;
+			}
 			if (canBuildWithSpace(tile, building, 0) &&
-				freeOnBottom(tile, building))
+				freeOnBottom(tile, building) &&
+				!taken)
 			{
 				return tile;
 			}
@@ -510,16 +484,30 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 		{
 			// Above.
 			tile = unit->getTilePosition() + BWAPI::TilePosition(0, -building.tileHeight());
+			bool taken = false;
+			for (auto tileTaken : takenPositions)
+			{
+				if (tileTaken == tile)
+					taken = true;
+			}
 			if (canBuildWithSpace(tile, building, 0) &&
-				freeOnTop(tile, building))
+				freeOnTop(tile, building) &&
+				!taken)
 			{
 				return tile;
 			}
 
 			// Below.
 			tile = unit->getTilePosition() + BWAPI::TilePosition(0, unit->getType().tileHeight());
+			taken = false;
+			for (auto tileTaken : takenPositions)
+			{
+				if (tileTaken == tile)
+					taken = true;
+			}
 			if (canBuildWithSpace(tile, building, 0) &&
-				freeOnBottom(tile, building))
+				freeOnBottom(tile, building) &&
+				!taken)
 			{
 				return tile;
 			}
@@ -531,20 +519,34 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 			{
 				// Above.
 				tile = unit->getTilePosition() + BWAPI::TilePosition(0, -building.tileHeight());
+				bool taken = false;
+				for (auto tileTaken : takenPositions)
+				{
+					if (tileTaken == tile)
+						taken = true;
+				}
 				if (canBuildWithSpace(tile, building, 0) &&
 					freeOnTop(tile, building) &&
 					freeOnLeft(tile, building) &&
-					freeOnRight(tile, building))
+					freeOnRight(tile, building) &&
+					!taken)
 				{
 					return tile;
 				}
 
 				// Below.
 				tile = unit->getTilePosition() + BWAPI::TilePosition(0, unit->getType().tileHeight());
+				taken = false;
+				for (auto tileTaken : takenPositions)
+				{
+					if (tileTaken == tile)
+						taken = true;
+				}
 				if (canBuildWithSpace(tile, building, 0) &&
 					freeOnBottom(tile, building) &&
 					freeOnLeft(tile, building) &&
-					freeOnRight(tile, building))
+					freeOnRight(tile, building) &&
+					!taken)
 				{
 					return tile;
 				}
@@ -557,20 +559,34 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 			{
 				// Left.
 				tile = unit->getTilePosition() + BWAPI::TilePosition(-building.tileWidth(), 0);
+				bool taken = false;
+				for (auto tileTaken : takenPositions)
+				{
+					if (tileTaken == tile)
+						taken = true;
+				}
 				if (canBuildWithSpace(tile, building, 0) &&
 					freeOnTop(tile, building) &&
 					freeOnLeft(tile, building) &&
-					freeOnBottom(tile, building))
+					freeOnBottom(tile, building) &&
+					!taken)
 				{
 					return tile;
 				}
 
 				// Right.
 				tile = unit->getTilePosition() + BWAPI::TilePosition(building.tileWidth(), 0);
+				taken = false;
+				for (auto tileTaken : takenPositions)
+				{
+					if (tileTaken == tile)
+						taken = true;
+				}
 				if (canBuildWithSpace(tile, building, 0) &&
 					freeOnBottom(tile, building) &&
 					freeOnLeft(tile, building) &&
-					freeOnTop(tile, building))
+					freeOnTop(tile, building) &&
+					!taken)
 				{
 					return tile;
 				}
@@ -935,17 +951,20 @@ BWAPI::TilePosition insanitybot::BuildingPlacer::getTurretLocation(InformationMa
 			//top right
 			if (validTurretLocation(BWAPI::TilePosition(commandCenter.x + (BWAPI::UnitTypes::Terran_Missile_Turret.tileWidth() * 2), commandCenter.y - BWAPI::UnitTypes::Terran_Missile_Turret.tileHeight())))
 			{
-				return BWAPI::TilePosition(commandCenter.x + (BWAPI::UnitTypes::Terran_Missile_Turret.tileWidth() * 2), commandCenter.y - BWAPI::UnitTypes::Terran_Missile_Turret.tileHeight());
+				BWAPI::TilePosition turretPosition = BWAPI::TilePosition(commandCenter.x + (BWAPI::UnitTypes::Terran_Missile_Turret.tileWidth() * 2), commandCenter.y - BWAPI::UnitTypes::Terran_Missile_Turret.tileHeight());
+				return getPositionNear(BWAPI::UnitTypes::Terran_Missile_Turret, turretPosition, _infoManager.getStrategy());
 			}
 			//Bottom
 			else if (validTurretLocation(BWAPI::TilePosition(commandCenter.x - BWAPI::UnitTypes::Terran_Missile_Turret.tileWidth(), commandCenter.y + (BWAPI::UnitTypes::Terran_Missile_Turret.tileHeight() * 2))))
 			{
-				return BWAPI::TilePosition(commandCenter.x - BWAPI::UnitTypes::Terran_Missile_Turret.tileWidth(), commandCenter.y + (BWAPI::UnitTypes::Terran_Missile_Turret.tileHeight() * 2));
+				BWAPI::TilePosition turretPosition = BWAPI::TilePosition(commandCenter.x - BWAPI::UnitTypes::Terran_Missile_Turret.tileWidth(), commandCenter.y + (BWAPI::UnitTypes::Terran_Missile_Turret.tileHeight() * 2));
+				return getPositionNear(BWAPI::UnitTypes::Terran_Missile_Turret, turretPosition, _infoManager.getStrategy());
 			}
 			//Upper Left
 			else if (validTurretLocation(BWAPI::TilePosition(commandCenter.x - BWAPI::UnitTypes::Terran_Missile_Turret.tileWidth(), commandCenter.y - (BWAPI::UnitTypes::Terran_Missile_Turret.tileHeight() * 2))))
 			{
-				return BWAPI::TilePosition(commandCenter.x - BWAPI::UnitTypes::Terran_Missile_Turret.tileWidth(), commandCenter.y - (BWAPI::UnitTypes::Terran_Missile_Turret.tileHeight() * 2));
+				BWAPI::TilePosition turretPosition = BWAPI::TilePosition(commandCenter.x - BWAPI::UnitTypes::Terran_Missile_Turret.tileWidth(), commandCenter.y - (BWAPI::UnitTypes::Terran_Missile_Turret.tileHeight() * 2));
+				return getPositionNear(BWAPI::UnitTypes::Terran_Missile_Turret, turretPosition, _infoManager.getStrategy());
 			}
 			else
 			{
@@ -959,11 +978,17 @@ BWAPI::TilePosition insanitybot::BuildingPlacer::getTurretLocation(InformationMa
 
 bool insanitybot::BuildingPlacer::validTurretLocation(BWAPI::TilePosition targetLocation)
 {
-	//Check each tilePosition
-	if (BWAPI::Broodwar->isBuildable(targetLocation, true) && BWAPI::Broodwar->isBuildable(targetLocation + BWAPI::TilePosition(0, 1), true) &&
-		BWAPI::Broodwar->isBuildable(targetLocation + BWAPI::TilePosition(1, 0), true) && BWAPI::Broodwar->isBuildable(targetLocation + BWAPI::TilePosition(1, 1), true))
+	int x = targetLocation.x + 1;
+	int y = targetLocation.y + 1;
+	//Check that the tile's bottom right corner doesn't fall outside of the map
+	if (x >= 0 && x < BWAPI::Broodwar->mapWidth() && y >= 0 && y < BWAPI::Broodwar->mapHeight())
 	{
-		return true;
+		//Check each tilePosition
+		if (BWAPI::Broodwar->isBuildable(targetLocation, true) && BWAPI::Broodwar->isBuildable(targetLocation + BWAPI::TilePosition(0, 1), true) &&
+			BWAPI::Broodwar->isBuildable(targetLocation + BWAPI::TilePosition(1, 0), true) && BWAPI::Broodwar->isBuildable(targetLocation + BWAPI::TilePosition(1, 1), true))
+		{
+			return true;
+		}
 	}
 
 	return false;
@@ -987,16 +1012,19 @@ BWAPI::TilePosition insanitybot::BuildingPlacer::getPositionNear(BWAPI::UnitType
 		{
 			bool inChoke = false;
 
-			for (auto choke : theMap.GetArea(beginingPoint)->ChokePoints())
+			if (theMap.GetArea(beginingPoint))
 			{
-				if (abs(choke->Center().x - BWAPI::WalkPosition(BWAPI::TilePosition(x, y)).x) <= 8 && abs(choke->Center().y - BWAPI::WalkPosition(BWAPI::TilePosition(x, y)).y) <= 8)
+				for (auto choke : theMap.GetArea(beginingPoint)->ChokePoints())
 				{
-					inChoke = true;
+					if (abs(choke->Center().x - BWAPI::WalkPosition(BWAPI::TilePosition(x, y)).x) <= 8 && abs(choke->Center().y - BWAPI::WalkPosition(BWAPI::TilePosition(x, y)).y) <= 8)
+					{
+						inChoke = true;
+						break;
+					}
 				}
 			}
 
-			if (((building == BWAPI::UnitTypes::Terran_Factory || building == BWAPI::UnitTypes::Terran_Starport || building == BWAPI::UnitTypes::Terran_Science_Facility) && strat == "Mech") ||
-				building == BWAPI::UnitTypes::Terran_Missile_Turret)
+			if ((building == BWAPI::UnitTypes::Terran_Factory || building == BWAPI::UnitTypes::Terran_Starport || building == BWAPI::UnitTypes::Terran_Science_Facility) && strat == "Mech")
 			{
 				if (canBuildWithSpace(BWAPI::TilePosition(x, y), building, 1) && !inChoke)
 					if (theMap.GetArea(beginingPoint) == theMap.GetArea(BWAPI::TilePosition(x,y)))

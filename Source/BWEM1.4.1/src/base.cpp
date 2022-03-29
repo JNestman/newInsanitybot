@@ -170,29 +170,21 @@ Mineral * Base::getDestroyedMineral(BWAPI::Unit patch)
 
 void Base::onUnitDestroy(BWAPI::Unit unit)
 {
-	if (unit->getType().isWorker())
+	for (auto & assignment : mineral_Assignments)
 	{
-		for (auto & assignment : mineral_Assignments)
+		if (assignment.second.contains(unit))
 		{
-			if (assignment.second.contains(unit))
-			{
-				assignment.second.erase(unit);
-			}
-		}
-
-		for (auto & assignment : refinery_Assignments)
-		{
-			if (assignment.second.contains(unit))
-			{
-				assignment.second.erase(unit);
-			}
+			assignment.second.erase(unit);
+			return;
 		}
 	}
-	else if (unit->getType().isRefinery())
+
+	for (auto & assignment : refinery_Assignments)
 	{
-		if (unit == baseRefinery)
+		if (assignment.second.contains(unit))
 		{
-			setBaseRefinery(NULL);
+			assignment.second.erase(unit);
+			return;
 		}
 	}
 }
@@ -207,22 +199,30 @@ void Base::cleanUpZombieTasks()
 {
 	for (auto & assignment : mineral_Assignments)
 	{
-		for (auto & worker : assignment.second)
+		for (BWAPI::Unitset::iterator worker = assignment.second.begin(); worker != assignment.second.end();)
 		{
-			if (!worker->exists())
+			if (!(*worker) || !(*worker)->exists())
 			{
-				assignment.second.erase(worker);
+				worker = assignment.second.erase(worker);
+			}
+			else
+			{
+				worker++;
 			}
 		}
 	}
 
 	for (auto & assignment : refinery_Assignments)
 	{
-		for (auto & worker : assignment.second)
+		for (BWAPI::Unitset::iterator worker = assignment.second.begin(); worker != assignment.second.end();)
 		{
-			if (!worker->exists())
+			if (!(*worker) || !(*worker)->exists())
 			{
-				assignment.second.erase(worker);
+				worker = assignment.second.erase(worker);
+			}
+			else
+			{
+				worker++;
 			}
 		}
 	}
@@ -281,11 +281,11 @@ bool Base::isGasWorker(BWAPI::Unit worker)
 	return false;
 }
 
-bool Base::onTurretDestroy(BWAPI::Unit destroyed)
+bool Base::onTurretDestroy()
 {
 	for (BWAPI::Unitset::iterator turret = turrets.begin(); turret != turrets.end(); turret++)
 	{
-		if (*turret == destroyed)
+		if (!(*turret) || !(*turret)->exists())
 		{
 			turrets.erase(turret);
 			return true;
@@ -328,7 +328,8 @@ int Base::getRemainingMinerals()
 	int ammount = 0;
 	for (auto mineral : m_Minerals)
 	{
-		ammount += mineral->Amount();
+		if (mineral)
+			ammount += mineral->Amount();
 	}
 
 	return ammount;
@@ -336,6 +337,9 @@ int Base::getRemainingMinerals()
 
 void Base::checkAssignment(BWAPI::Unit worker, std::map<BWAPI::Position, BWEM::Base *>& _ownedBases, BWEM::Base* & assignedBase)
 {
+	if (!worker || !worker->exists())
+		return;
+
 	// Check if they're a gas worker
 	if (refinery_Assignments.size())
 	{
@@ -436,19 +440,25 @@ void Base::removeAssignment(BWAPI::Unit worker)
 {
 	for (auto & assignment : mineral_Assignments)
 	{
-		if (assignment.second.contains(worker))
+		for (auto & mineralWorker : assignment.second)
 		{
-			assignment.second.erase(worker);
-			return;
+			if (mineralWorker == worker)
+			{
+				assignment.second.erase(mineralWorker);
+				return;
+			}
 		}
 	}
 
 	for (auto & assignment : refinery_Assignments)
 	{
-		if (assignment.second.contains(worker))
+		for (auto & gasWorker : assignment.second)
 		{
-			assignment.second.erase(worker);
-			return;
+			if (gasWorker == worker)
+			{
+				assignment.second.erase(gasWorker);
+				return;
+			}
 		}
 	}
 }

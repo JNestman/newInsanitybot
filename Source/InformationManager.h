@@ -2,14 +2,23 @@
 #define INFOMATIONMANAGER_H
 
 #include "BWEM1.4.1/src/bwem.h"
-#include "BuildOrder.h"
-#include <list>
 
 namespace insanitybot
 {
 	class InformationManager
 	{
+		// Deletion functions
+		void checkForDeadList(std::list<BWAPI::Unit>& listToDeleteFrom);
+		void checkForDeadMap(std::map<BWAPI::Unit, int>& mapToDeleteFrom);
+		void checkForDeadCenters();
+		void checkForDeadRefineries();
+
+		// Variables
 		std::string											_strategy;
+		std::vector<std::string>							_1BaseStrat {"8RaxDef", "8RaxAgg", "1BaseMech", "TONK"};
+		std::vector<std::string>							_2BaseStrat	{"SKTerran", "Mech", "Nuke"};
+		std::vector<std::string>							_bio		{"8RaxDef", "8RaxAgg", "SKTerran"};
+		std::vector<std::string>							_mech		{"Mech", "1BaseMech", "TONK"};
 
 		std::list<BWAPI::UnitType>							_queue;
 		BWAPI::Player										_self;
@@ -27,8 +36,11 @@ namespace insanitybot
 		std::vector<BWAPI::TilePosition>					_squadScoutRotation;
 		std::map<BWAPI::Position, BWEM::Base *>				_islandBases;
 		std::map<BWAPI::Position, BWEM::Base *>				_ownedIslandBases;
+
 		std::map<BWAPI::Position, BWEM::Base *>				_enemyBases;
 		std::list<BWAPI::Position>							_enemyStructurePositions;
+		BWAPI::Unitset										_enemyUnits;
+		bool												_enemyPool;
 
 		std::list<BWAPI::Unit>								_neutralBuildings;
 
@@ -40,7 +52,11 @@ namespace insanitybot
 		std::list<BWAPI::Unit>								_commandCenters;
 		std::list<BWAPI::Unit>								_islandCenters;
 		std::map<BWAPI::Unit, BWEM::Base *>					_workers;
+		std::list<BWAPI::Unit>								_bullyHunters;
+		std::list<BWAPI::Unit>								_repairWorkers;
 		std::map<BWAPI::Unit, BWEM::Base *>					_islandWorkers;
+
+		std::list<BWAPI::Unit>								_refineries;
 
 		BWAPI::Unit											_islandBuilder;
 
@@ -69,6 +85,9 @@ namespace insanitybot
 		std::list<BWAPI::Unit>								_construction;
 		std::list<BWAPI::Unit>								_injuredBuildings;
 		std::list<BWAPI::Unit>								_bunkers;
+		BWAPI::TilePosition									_mainBunkerPos;
+		BWAPI::TilePosition									_NatBunkerPos;
+
 		std::list<BWAPI::Unit>								_turrets;
 
 		BWAPI::Unit											_scout;
@@ -82,22 +101,33 @@ namespace insanitybot
 		bool												_islandExpand;
 
 		bool												_enemyHasAir;
+		bool												_enemyRushing;
 
 	public:
 		InformationManager();
 		~InformationManager() {};
 		void initialize();
+		void checkQueue(BWAPI::Unit myUnit);
 		void update();
+		
+		// Build Orders here
 		void updateBuildOrder();
+		void SKTerran();
+		void Mech();
+		void EightRaxDef();
+		void OneBaseMech();
+
 		bool closeEnough(BWAPI::Position location1, BWAPI::Position location2);
 		void onUnitShow(BWAPI::Unit unit);
-		void onUnitCreate(BWAPI::Unit unit);
 		void onUnitDestroy(BWAPI::Unit unit);
 		void onUnitRenegade(BWAPI::Unit unit);
 		void onUnitComplete(BWAPI::Unit unit);
 
 		bool shouldExpand();
+		bool areExpanding();
 		bool shouldHaveDefenseSquad(bool worker);
+
+		bool checkForEnemyRush();
 		
 		std::vector<BWAPI::Unit> mineralsNeedClear();
 
@@ -107,8 +137,11 @@ namespace insanitybot
 		BWAPI::Race getEnemyRace()										{ return _enemyRace; };
 
 		std::list<BWAPI::Unit> getCommandCenters()						{ return _commandCenters; };
+		std::list<BWAPI::Unit> getRefineries()							{ return _refineries; }
 		std::list<BWAPI::Unit> getIslandCenters()						{ return _islandCenters; };
 		std::map<BWAPI::Unit, BWEM::Base *>& getWorkers()				{ return _workers; };
+		std::list<BWAPI::Unit>& getBullyHunters()						{ return _bullyHunters; };
+		std::list<BWAPI::Unit>& getRepairWorkers()						{ return _repairWorkers; };
 		std::map<BWAPI::Unit, BWEM::Base *>& getIslandWorkers()			{ return _islandWorkers; };
 		std::list<BWAPI::Unit> getBarracks()							{ return _barracks; };
 		std::list<BWAPI::Unit> getFactories()							{ return _factories; };
@@ -118,8 +151,6 @@ namespace insanitybot
 		std::list<BWAPI::Unit> getEngibays()							{ return _engibays; };
 		std::list<BWAPI::Unit> getArmories()							{ return _armories; };
 		std::list<BWAPI::Unit> getScience()								{ return _science; };
-
-		bool armoryDone()												{ return getNumFinishedUnit(BWAPI::UnitTypes::Terran_Armory); };
 
 		BWAPI::Unit & getIslandBuilder()								{ return _islandBuilder; };
 		BWAPI::Unitset getIslandSmallMinerals()							{ return _islandSmallMinerals; };
@@ -139,6 +170,8 @@ namespace insanitybot
 		std::list<BWAPI::Unit> getInjuredBuildings()					{ return _injuredBuildings; };
 		std::list<BWAPI::Unit> getTurrets()								{ return _turrets; };
 		std::list<BWAPI::Unit> getBunkers()								{ return _bunkers; };
+		BWAPI::TilePosition getMainBunkerPos()							{ return _mainBunkerPos; };
+		BWAPI::TilePosition getNatBunkerPos()							{ return _NatBunkerPos; };
 
 		std::map<BWAPI::Position, BWEM::Base *>& getOwnedBases()		{ return _ownedBases; };
 		std::map<BWAPI::Position, BWEM::Base *>& getOtherBases()		{ return _otherBases; };
@@ -148,6 +181,8 @@ namespace insanitybot
 		std::list<BWAPI::Position>& getEnemyBuildingPositions()			{ return _enemyStructurePositions; };
 		std::vector<BWAPI::TilePosition>& getSquadScoutLocations()		{ return _squadScoutRotation; };
 
+		BWAPI::TilePosition	getEnemyMainTilePos()						{ return _enemyMainPos; }
+
 		std::list<BWAPI::Unit>& getNeutralBuildings()					{ return _neutralBuildings; };
 
 		BWAPI::Unit & getScout()										{ return _scout; };
@@ -156,7 +191,7 @@ namespace insanitybot
 		BWAPI::Position getMainChokePos()								{ return _mainChoke; };
 		BWAPI::Position getNaturalChokePos()							{ return _naturalChoke; };
 		BWAPI::Position getEnemyNaturalPos()							{ return _enemyNatPos; };
-		int getNumWorkersOwned()										{ return _workers.size() + _islandWorkers.size(); };
+		int getNumWorkersOwned()										{ return _workers.size() + _bullyHunters.size() + _repairWorkers.size(); };
 		int getNumProducers()											{ return _barracks.size() + _factories.size() + _starports.size() + _commandCenters.size(); };
 		int getNumFinishedUnit(BWAPI::UnitType type);
 		int getNumUnfinishedUnit(BWAPI::UnitType type);
@@ -173,9 +208,16 @@ namespace insanitybot
 		BWAPI::TilePosition getNatPosition()		{ return BWAPI::TilePosition(_natural->Center()); }
 
 		bool getAggression()						{ return _attack; };
+		bool isOneBasePlay(std::string strat)		{ return std::find(_1BaseStrat.begin(), _1BaseStrat.end(), strat) != _1BaseStrat.end(); };
+		bool isTwoBasePlay(std::string strat)		{ return std::find(_2BaseStrat.begin(), _2BaseStrat.end(), strat) != _2BaseStrat.end(); };
+		bool isBio(std::string strat)				{return std::find(_bio.begin(), _bio.end(), strat) != _bio.end();};
+		bool isMech(std::string strat)				{ return std::find(_mech.begin(), _mech.end(), strat) != _mech.end(); };
+
 		bool shouldIslandExpand()					{ return _islandExpand; };
 
 		bool enemyHasAir()							{ return _enemyHasAir; };
+
+		bool armoryDone()							{ return getNumFinishedUnit(BWAPI::UnitTypes::Terran_Armory); };
 
 		//Setters
 		std::string setStrategy(std::string strat)	{ _strategy = strat; }
