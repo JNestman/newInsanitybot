@@ -860,7 +860,6 @@ void insanitybot::WorkerManager::assignBullyHunters(std::map<BWAPI::Unit, BWEM::
 				return;
 			}
 
-			BWAPI::Broodwar->setLocalSpeed(10);
 			_bullyHunters.push_back(hunter->first);
 
 			for (auto & base : _ownedBases)
@@ -1024,27 +1023,6 @@ void insanitybot::WorkerManager::handleIslandConstruction(std::map<BWAPI::Unit, 
 						worker.first->build(BWAPI::UnitTypes::Terran_Refinery, base.second->Geysers().front()->TopLeft());
 					}
 					break;
-				}
-				else if (worker.second == base.second && base.second->numTurretsHere() < 3 && worker.first->isGatheringGas() && _engibays.size())
-				{
-					if (BWAPI::Broodwar->self()->minerals() >= 75)
-					{
-						worker.first->build(BWAPI::UnitTypes::Terran_Missile_Turret, targetLocation);
-					}
-				}
-			}
-		}
-		else if (base.second->numTurretsHere() < 3 && _engibays.size())
-		{
-			for (auto worker : _islandWorkers)
-			{
-				if (worker.second == base.second && worker.first->isGatheringGas())
-				{
-					if (BWAPI::Broodwar->self()->minerals() >= 75)
-					{
-						worker.first->build(BWAPI::UnitTypes::Terran_Missile_Turret, targetLocation);
-						break;
-					}
 				}
 			}
 		}

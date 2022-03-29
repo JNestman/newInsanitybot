@@ -358,23 +358,29 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 	{
 		if (_infoManager.isOneBasePlay(_infoManager.getStrategy()))
 		{
-			desiredLocation = BWAPI::Broodwar->getBuildLocation(BWAPI::UnitTypes::Terran_Bunker, _infoManager.getMainBunkerPos());
+			bool bunkerSpotBuildable = BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos())) &&
+				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 0)) &&
+				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(0, 1)) &&
+				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 1));
+
+			if (bunkerSpotBuildable)
+				desiredLocation = _infoManager.getMainBunkerPos();
+			else
+				desiredLocation = getPositionNear(BWAPI::UnitTypes::Terran_Bunker, _infoManager.getMainBunkerPos(), _infoManager.getStrategy());
 		}
 		else
 		{
-			if (BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getNatBunkerPos())))
+			// For some reason, this behavior leads to better bunker placement in the natural.
+			bool bunkerSpotBuildable = BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos())); /*&&
+				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 0)) &&
+				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(0, 1)) &&
+				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 1));*/
+
+			if (bunkerSpotBuildable)
 				desiredLocation = _infoManager.getNatBunkerPos();
 			else
 				desiredLocation = BWAPI::Broodwar->getBuildLocation(BWAPI::UnitTypes::Terran_Bunker, _infoManager.getNatBunkerPos());
 		}
-		/*if (BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getNaturalChokePos())))
-		{
-			desiredLocation = BWAPI::TilePosition(_infoManager.getNaturalChokePos());
-		}
-		else
-		{
-			desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(_infoManager.getNaturalChokePos()));
-		}*/
 
 		return desiredLocation;
 	}

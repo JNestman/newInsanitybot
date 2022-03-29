@@ -15,8 +15,10 @@ namespace insanitybot
 
 		// Variables
 		std::string											_strategy;
-		std::vector<std::string>							_1BaseStrat {"8RaxDef", "8RaxAgg", "2Fac", "TONK"};
+		std::vector<std::string>							_1BaseStrat {"8RaxDef", "8RaxAgg", "1BaseMech", "TONK"};
 		std::vector<std::string>							_2BaseStrat	{"SKTerran", "Mech", "Nuke"};
+		std::vector<std::string>							_bio		{"8RaxDef", "8RaxAgg", "SKTerran"};
+		std::vector<std::string>							_mech		{"Mech", "1BaseMech", "TONK"};
 
 		std::list<BWAPI::UnitType>							_queue;
 		BWAPI::Player										_self;
@@ -113,6 +115,7 @@ namespace insanitybot
 		void SKTerran();
 		void Mech();
 		void EightRaxDef();
+		void OneBaseMech();
 
 		bool closeEnough(BWAPI::Position location1, BWAPI::Position location2);
 		void onUnitShow(BWAPI::Unit unit);
@@ -178,6 +181,8 @@ namespace insanitybot
 		std::list<BWAPI::Position>& getEnemyBuildingPositions()			{ return _enemyStructurePositions; };
 		std::vector<BWAPI::TilePosition>& getSquadScoutLocations()		{ return _squadScoutRotation; };
 
+		BWAPI::TilePosition	getEnemyMainTilePos()						{ return _enemyMainPos; }
+
 		std::list<BWAPI::Unit>& getNeutralBuildings()					{ return _neutralBuildings; };
 
 		BWAPI::Unit & getScout()										{ return _scout; };
@@ -186,7 +191,7 @@ namespace insanitybot
 		BWAPI::Position getMainChokePos()								{ return _mainChoke; };
 		BWAPI::Position getNaturalChokePos()							{ return _naturalChoke; };
 		BWAPI::Position getEnemyNaturalPos()							{ return _enemyNatPos; };
-		int getNumWorkersOwned()										{ return _workers.size() + _islandWorkers.size() + _bullyHunters.size() + _repairWorkers.size(); };
+		int getNumWorkersOwned()										{ return _workers.size() + _bullyHunters.size() + _repairWorkers.size(); };
 		int getNumProducers()											{ return _barracks.size() + _factories.size() + _starports.size() + _commandCenters.size(); };
 		int getNumFinishedUnit(BWAPI::UnitType type);
 		int getNumUnfinishedUnit(BWAPI::UnitType type);
@@ -205,6 +210,8 @@ namespace insanitybot
 		bool getAggression()						{ return _attack; };
 		bool isOneBasePlay(std::string strat)		{ return std::find(_1BaseStrat.begin(), _1BaseStrat.end(), strat) != _1BaseStrat.end(); };
 		bool isTwoBasePlay(std::string strat)		{ return std::find(_2BaseStrat.begin(), _2BaseStrat.end(), strat) != _2BaseStrat.end(); };
+		bool isBio(std::string strat)				{return std::find(_bio.begin(), _bio.end(), strat) != _bio.end();};
+		bool isMech(std::string strat)				{ return std::find(_mech.begin(), _mech.end(), strat) != _mech.end(); };
 
 		bool shouldIslandExpand()					{ return _islandExpand; };
 

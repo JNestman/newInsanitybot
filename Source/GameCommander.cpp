@@ -69,19 +69,6 @@ void GameCommander::infoText()
 	Broodwar->drawCircleMap(BWAPI::Position(_informationManager.getNatPosition()), 20, BWAPI::Colors::Green);
 	Broodwar->drawCircleMap(BWAPI::Position(_informationManager.getMainPosition()), 800, BWAPI::Colors::Cyan);
 	Broodwar->drawCircleMap(BWAPI::Position((BWAPI::Position(_informationManager.getMainPosition()).x + _informationManager.getMainChokePos().x) / 2, (BWAPI::Position(_informationManager.getMainPosition()).y + _informationManager.getMainChokePos().y) / 2), 10, BWAPI::Colors::Blue);
-	
-	BWAPI::TilePosition center = BWAPI::TilePosition(BWAPI::TilePosition(BWAPI::Broodwar->mapWidth() / 2, BWAPI::Broodwar->mapHeight() / 2));
-	/*if (_informationManager.getEnemyBases().size())
-	{
-		if (BWAPI::Broodwar->mapHash() == "e47775e171fe3f67cc2946825f00a6993b5a415e") // La Mancha
-		{
-			Broodwar->drawCircleMap(BWAPI::Position((_informationManager.getEnemyNaturalPos().x * .70) + (BWAPI::Position(center).x * .30), (_informationManager.getEnemyNaturalPos().y * .70) + (BWAPI::Position(center).y * .30)), 40, BWAPI::Colors::Purple);
-		}
-		else
-		{
-			Broodwar->drawCircleMap(BWAPI::Position((_informationManager.getEnemyNaturalPos().x + BWAPI::Position(center).x) / 2, (_informationManager.getEnemyNaturalPos().y + BWAPI::Position(center).y) / 2), 40, BWAPI::Colors::Purple);
-		}
-	}*/
 
 	for (auto base : _informationManager.getOwnedBases())
 	{

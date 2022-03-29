@@ -13,17 +13,20 @@ namespace insanitybot
 		std::list<Squad> _infantrySquads;
 		std::list<Squad> _mechSquads;
 		std::list<Squad> _defensiveSquads;
+		std::list<Squad> _dropSquad;
+		std::list<Squad> _specialistSquad;
+		
 		int infantrySquadSizeLimit;
 		int mechSquadSizeLimit;
 		bool needDefense;
 
 		//            Vessel,                target, frame targeted
 		std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>> _irradiateDB;
+		//            medic,                target, frame targeted
+		std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>> _flareBD;
 
 	public:
 		UnitManager();
-
-		void onUnitDestroy(BWAPI::Unit unit);
 
 		void update(InformationManager & _infoManager);
 		void handleScout(BWAPI::Unit & _scout);
@@ -31,6 +34,9 @@ namespace insanitybot
 
 		bool irradiateTarget(BWAPI::Unit vessel);
 		bool notIrradiateTarged(BWAPI::Unit potentialTarget);
+
+
+		void checkFlareDBForTimeout();
 
 		void infoText();
 	};

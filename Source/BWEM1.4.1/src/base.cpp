@@ -328,7 +328,8 @@ int Base::getRemainingMinerals()
 	int ammount = 0;
 	for (auto mineral : m_Minerals)
 	{
-		ammount += mineral->Amount();
+		if (mineral)
+			ammount += mineral->Amount();
 	}
 
 	return ammount;

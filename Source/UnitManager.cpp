@@ -14,6 +14,11 @@ insanitybot::UnitManager::UnitManager()
 
 void UnitManager::update(InformationManager & _infoManager)
 {
+	bool stratIsBio = _infoManager.isBio(_infoManager.getStrategy());
+	bool stratIsMech = _infoManager.isMech(_infoManager.getStrategy());
+
+	checkFlareDBForTimeout();
+
 	if (_infoManager.getScout())
 	{
 		handleScout(_infoManager.getScout());
@@ -29,7 +34,7 @@ void UnitManager::update(InformationManager & _infoManager)
 		nextUp = squadScoutLocation.front();
 	}
 
-	if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
+	if (stratIsBio)
 	{	// Loop through our marines and make sure they are assigned to a squad
 		for (auto & marine : _infoManager.getMarines())
 		{
@@ -83,7 +88,7 @@ void UnitManager::update(InformationManager & _infoManager)
 			}
 		}
 	}
-	else if (_infoManager.getStrategy() == "Mech")
+	else if (stratIsMech)
 	{	
 		//Load marines into bunkers
 		for (auto & marine : _infoManager.getMarines())
@@ -166,11 +171,11 @@ void UnitManager::update(InformationManager & _infoManager)
 				BWAPI::Position closest = _infoManager.getNaturalChokePos();
 				int distance = 99999;
 				std::list<Squad> _squads;
-				if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
+				if (stratIsBio)
 				{
 					_squads = _infantrySquads;
 				}
-				else if (_infoManager.getStrategy() == "Mech")
+				else if (stratIsMech)
 				{
 					_squads = _mechSquads;
 				}
@@ -201,11 +206,11 @@ void UnitManager::update(InformationManager & _infoManager)
 				BWAPI::Position closest = _infoManager.getNaturalChokePos();
 				int distance = 99999;
 				std::list<Squad> _squads;
-				if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
+				if (stratIsBio)
 				{
 					_squads = _infantrySquads;
 				}
-				else if (_infoManager.getStrategy() == "Mech")
+				else if (stratIsMech)
 				{
 					_squads = _mechSquads;
 				}
@@ -235,11 +240,11 @@ void UnitManager::update(InformationManager & _infoManager)
 				BWAPI::Position closest = _infoManager.getNaturalChokePos();
 				int distance = 99999;
 				std::list<Squad> _squads;
-				if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
+				if (stratIsBio)
 				{
 					_squads = _infantrySquads;
 				}
-				else if (_infoManager.getStrategy() == "Mech")
+				else if (stratIsMech)
 				{
 					_squads = _mechSquads;
 				}
@@ -347,14 +352,14 @@ void UnitManager::update(InformationManager & _infoManager)
 			{
 				if (BWAPI::Broodwar->getFrameCount() - squad->getDefenseLastNeededFrame() > 1000)
 				{
-					if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
+					if (stratIsBio)
 					{
 						squad->setHaveGathered(false);
 						_infantrySquads.push_back(*squad);
 						_defensiveSquads.erase(squad);
 						break;
 					}
-					else if (_infoManager.getStrategy() == "Mech")
+					else if (stratIsMech)
 					{
 						squad->setHaveGathered(false);
 						_mechSquads.push_back(*squad);
@@ -365,23 +370,23 @@ void UnitManager::update(InformationManager & _infoManager)
 			}
 			else if (target->getPlayer() == BWAPI::Broodwar->enemy())
 			{
-				if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
+				if (stratIsBio)
 				{
 					// Send mostly full squads to engage
 					if (squad->infantrySquadSize() >= 10)
 					{
 						squad->setDefenseLastNeededFrame(BWAPI::Broodwar->getFrameCount());
-						squad->attack(target->getPosition(), BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y));
+						squad->attack(target->getPosition(), BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y), _flareBD);
 					}
 					// Else, fall back to a defensive point and hope reinforcements pop soon
 					else
 					{
 						squad->setDefenseLastNeededFrame(BWAPI::Broodwar->getFrameCount());
 						BWAPI::Position defensePoint = BWAPI::Position((BWAPI::Position(_infoManager.getMainPosition()).x + target->getPosition().x) / 2, (BWAPI::Position(_infoManager.getMainPosition()).y + target->getPosition().y) / 2);
-						squad->attack(defensePoint, BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y));
+						squad->attack(defensePoint, BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y), _flareBD);
 					}
 				}
-				else if (_infoManager.getStrategy() == "Mech")
+				else if (stratIsMech)
 				{
 					// Don't send squads with no anti air to defend air attacks
 					if (target->getType().isFlyer() && squad->numGoliaths() < 1)
@@ -395,21 +400,21 @@ void UnitManager::update(InformationManager & _infoManager)
 					else if (squad->mechSquadSize() >= 7)
 					{
 						squad->setDefenseLastNeededFrame(BWAPI::Broodwar->getFrameCount());
-						squad->attack(target->getPosition(), BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y));
+						squad->attack(target->getPosition(), BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y), _flareBD);
 					}
 					// Else, fall back to a defensive point and hope reinforcements pop soon
 					else
 					{
 						squad->setDefenseLastNeededFrame(BWAPI::Broodwar->getFrameCount());
 						BWAPI::Position defensePoint = BWAPI::Position((BWAPI::Position(_infoManager.getMainPosition()).x + target->getPosition().x) / 2, (BWAPI::Position(_infoManager.getMainPosition()).y + target->getPosition().y) / 2);
-						squad->attack(defensePoint, BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y));
+						squad->attack(defensePoint, BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y), _flareBD);
 					}
 				}
 			}
 			else if (target->getPlayer() == BWAPI::Broodwar->neutral())
 			{
 				squad->setDefenseLastNeededFrame(BWAPI::Broodwar->getFrameCount());
-				squad->attack(target);
+				squad->attack(target, _flareBD);
 			}
 		}
 	}
@@ -448,17 +453,17 @@ void UnitManager::update(InformationManager & _infoManager)
 						forwardPosition = BWAPI::Position((_infoManager.getEnemyNaturalPos().x + BWAPI::Position(center).x) / 2, (_infoManager.getEnemyNaturalPos().y + BWAPI::Position(center).y) / 2);
 					}
 
-					squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition);
+					squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition, _flareBD);
 				}
 				else if (_infoManager.getEnemyBuildingPositions().size())
 				{
 					BWAPI::Position forwardPosition = BWAPI::Position(0, 0);
-					squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition);
+					squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition, _flareBD);
 				}
 				else
 				{
 					BWAPI::Position forwardPosition = BWAPI::Position(0, 0);
-					squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition);
+					squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD);
 				}
 
 				if (squad.numMarines() == 0)
@@ -471,14 +476,15 @@ void UnitManager::update(InformationManager & _infoManager)
 			{
 				if (_infoManager.getBunkers().size())
 				{
-					if (_infoManager.getBunkers().size() == 1 && !_infoManager.areExpanding())
+					if (_infoManager.getBunkers().size() == 1 && _infoManager.getOwnedBases().size() < 2 && !_infoManager.areExpanding())
 					{
-						squad.gather(_infoManager.getBunkers().front()->getPosition());
+						squad.gather(_infoManager.getBunkers().front()->getPosition(), _flareBD);
 					}
-					else if (_infoManager.areExpanding() && _infoManager.getOwnedBases().size() < 2 && _infoManager.getBunkers().size() < 2)
+					else if ((_infoManager.areExpanding() && _infoManager.getOwnedBases().size() < 2 && _infoManager.getBunkers().size() < 2) ||
+						(_infoManager.getBunkers().size() == 1 && !_infoManager.areExpanding()))
 					{
 						BWAPI::Position halfway = BWAPI::Position((BWAPI::Position(_infoManager.getNatPosition()).x + _infoManager.getNaturalChokePos().x) / 2, (BWAPI::Position(_infoManager.getNatPosition()).y + _infoManager.getNaturalChokePos().y) / 2);
-						squad.gather(halfway);
+						squad.gather(halfway, _flareBD);
 					}
 					else
 					{
@@ -493,13 +499,13 @@ void UnitManager::update(InformationManager & _infoManager)
 							}
 						}
 
-						squad.gather(point);
+						squad.gather(point, _flareBD);
 					}
 				}
 				else
 				{
 					BWAPI::Position halfway = BWAPI::Position((BWAPI::Position(_infoManager.getNatPosition()).x + _infoManager.getNaturalChokePos().x) / 2, (BWAPI::Position(_infoManager.getNatPosition()).y + _infoManager.getNaturalChokePos().y) / 2);
-					squad.gather(halfway);
+					squad.gather(halfway, _flareBD);
 				}
 			}
 		}
@@ -547,17 +553,17 @@ void UnitManager::update(InformationManager & _infoManager)
 						forwardPosition = BWAPI::Position((_infoManager.getEnemyNaturalPos().x + BWAPI::Position(center).x) / 2, (_infoManager.getEnemyNaturalPos().y + BWAPI::Position(center).y) / 2);
 					}
 
-					squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition);
+					squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition, _flareBD);
 				}
 				else if (_infoManager.getEnemyBuildingPositions().size())
 				{
 					BWAPI::Position forwardPosition = BWAPI::Position(0, 0);
-					squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition);
+					squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition, _flareBD);
 				}
 				else
 				{
 					BWAPI::Position forwardPosition = BWAPI::Position(0, 0);
-					squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition);
+					squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD);
 				}
 
 				if (squad.numTanks() == 0 && 400 - BWAPI::Broodwar->self()->supplyUsed() > 100)
@@ -570,9 +576,15 @@ void UnitManager::update(InformationManager & _infoManager)
 			{
 				if (_infoManager.getBunkers().size())
 				{
-					if (_infoManager.getBunkers().size() == 1)
+					if (_infoManager.getBunkers().size() == 1 && _infoManager.getOwnedBases().size() < 2 && !_infoManager.areExpanding())
 					{
-						squad.gather(_infoManager.getBunkers().front()->getPosition());
+						squad.gather(_infoManager.getBunkers().front()->getPosition(), _flareBD);
+					}
+					else if ((_infoManager.areExpanding() && _infoManager.getOwnedBases().size() < 2 && _infoManager.getBunkers().size() < 2) ||
+						(_infoManager.getBunkers().size() == 1 && !_infoManager.areExpanding()))
+					{
+						BWAPI::Position halfway = BWAPI::Position((BWAPI::Position(_infoManager.getNatPosition()).x + _infoManager.getNaturalChokePos().x) / 2, (BWAPI::Position(_infoManager.getNatPosition()).y + _infoManager.getNaturalChokePos().y) / 2);
+						squad.gather(halfway, _flareBD);
 					}
 					else
 					{
@@ -587,13 +599,13 @@ void UnitManager::update(InformationManager & _infoManager)
 							}
 						}
 
-						squad.gather(point);
+						squad.gather(point, _flareBD);
 					}
 				}
 				else
 				{
 					BWAPI::Position halfway = BWAPI::Position((BWAPI::Position(_infoManager.getNatPosition()).x + _infoManager.getNaturalChokePos().x) / 2, (BWAPI::Position(_infoManager.getNatPosition()).y + _infoManager.getNaturalChokePos().y) / 2);
-					squad.gather(halfway);
+					squad.gather(halfway, _flareBD);
 				}
 			}
 		}
@@ -662,7 +674,10 @@ void UnitManager::update(InformationManager & _infoManager)
 		}
 	}
 
-	// Vessel handling and spellcasting
+	/*****************************************************************
+	* Spellcasting section
+	******************************************************************/
+	// Vessel handling
 	for (auto & vessel : _infoManager.getVessels())
 	{
 		if (!vessel.first->exists())
@@ -697,11 +712,11 @@ void UnitManager::update(InformationManager & _infoManager)
 				BWAPI::Position closest = _infoManager.getNaturalChokePos();
 				int distance = 99999;
 				std::list<Squad> _squads;
-				if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
+				if (stratIsBio)
 				{
 					_squads = _infantrySquads;
 				}
-				else if (_infoManager.getStrategy() == "Mech")
+				else if (stratIsMech)
 				{
 					_squads = _mechSquads;
 				}
@@ -731,11 +746,11 @@ void UnitManager::update(InformationManager & _infoManager)
 				BWAPI::Position closest = _infoManager.getNaturalChokePos();
 				int distance = 99999;
 				std::list<Squad> _squads;
-				if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
+				if (stratIsBio)
 				{
 					_squads = _infantrySquads;
 				}
-				else if (_infoManager.getStrategy() == "Mech")
+				else if (stratIsMech)
 				{
 					_squads = _mechSquads;
 				}
@@ -765,11 +780,11 @@ void UnitManager::update(InformationManager & _infoManager)
 				BWAPI::Position closest = _infoManager.getNaturalChokePos();
 				int distance = 99999;
 				std::list<Squad> _squads;
-				if (_infoManager.getStrategy() == "SKTerran" || _infoManager.getStrategy() == "8RaxDef")
+				if (stratIsBio)
 				{
 					_squads = _infantrySquads;
 				}
-				else if (_infoManager.getStrategy() == "Mech")
+				else if (stratIsMech)
 				{
 					_squads = _mechSquads;
 				}
@@ -965,7 +980,10 @@ bool insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio)
 	return false;
 }
 
-// Will return a valid target for our science vessel to irradiate
+/***************************************************************
+* Will return true if we found a valid target for our science 
+* vessel to irradiate
+****************************************************************/
 bool insanitybot::UnitManager::irradiateTarget(BWAPI::Unit vessel)
 {
 	if (vessel->getEnergy() < 75 || !BWAPI::Broodwar->self()->hasResearched(BWAPI::TechTypes::Irradiate))
@@ -1019,6 +1037,7 @@ bool insanitybot::UnitManager::irradiateTarget(BWAPI::Unit vessel)
 	return target;
 }
 
+// Simple check if we've potentially already marked the target to be irradiated
 bool insanitybot::UnitManager::notIrradiateTarged(BWAPI::Unit potentialTarget)
 {
 	for (auto target : _irradiateDB)
@@ -1031,15 +1050,38 @@ bool insanitybot::UnitManager::notIrradiateTarged(BWAPI::Unit potentialTarget)
 	return true;
 }
 
+/*****************************************************************************
+* Check the flare database and erase any targets that have taken too long
+* to flare.
+******************************************************************************/
+void insanitybot::UnitManager::checkFlareDBForTimeout()
+{
+	for (std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>>::iterator target = _flareBD.begin(); target != _flareBD.end();)
+	{
+		if (BWAPI::Broodwar->getFrameCount() - target->second.second > 72)
+		{
+			target = _flareBD.erase(target);
+			continue;
+		}
+
+		target++;
+	}
+}
+
+/***************************************************************
+* Display squad information on the map
+****************************************************************/
 void insanitybot::UnitManager::infoText()
 {
 	BWAPI::Broodwar->drawTextScreen(200, 100, "numInfSquads: %d", _infantrySquads.size());
 	BWAPI::Broodwar->drawTextScreen(200, 110, "numMecSquads: %d", _mechSquads.size());
 
-	std::vector<std::string> infantrySquadCallSigns{ "Overlord", "Hunter 1-1", "Hunter 1-2", "Hunter 1-3", "Hunter 1-4", "Hunter 1-5", "Hunter 1-6", "Hunter 1-7", "Hunter 1-8", "Hunter 1-9", "Hunter 1-10", "Hunter 1 - 11", "Hunter 1-12" };
+	std::vector<std::string> infantrySquadCallSigns{ "Overlord", "Hunter 1-1", "Hunter 1-2", "Hunter 1-3", "Hunter 1-4", "Hunter 1-5", "Hunter 1-6", "Hunter 1-7", "Hunter 1-8", "Hunter 1-9", "Hunter 1-10", "Hunter 1 - 11", "Hunter 1-12" 
+	, "Hunter 1-13" , "Hunter 1-14" , "Hunter 1-15", "Hunter 1-16" };
 	std::vector<std::string> mechSquadCallSigns{ "Overlord", "Broadsword 1-1", "Broadsword 1-2", "Broadsword 1-3", "Broadsword 1-4", "Broadsword 1-5", "Broadsword 1-6", "Broadsword 1-7", "Broadsword 1-8", "Broadsword 1-9", "Broadsword 1-10"
 	, "Broadsword 1-11", "Broadsword 1-12", "Broadsword 1-13", "Broadsword 1-14", "Broadsword 1-15", "Broadsword 1-16", "Broadsword 1-17", "Broadsword 1-18", "Broadsword 1-19"};
 	std::vector<std::string> defensiveCallsings{ "Overlord", "Aegis 1-1", "Aegis 1-2", "Aegis 1-3", "Aegis 1-4", "Aegis 1-5", "Aegis 1-6", "Aegis 1-7", "Aegis 1-8", "Aegis 1-9" };
+	std::vector<std::string> dropSquadCallSigns{ "Overlord", "Bandit 1-1", "Bandit 1-2", "Bandit 1-3", "Bandit 1-4", "Bandit 1-5" };
 
 	int count = 1;
 	for (auto squad : _infantrySquads)
@@ -1061,4 +1103,30 @@ void insanitybot::UnitManager::infoText()
 		BWAPI::Broodwar->drawTextMap(squad.getSquadPosition(), "%s", defensiveCallsings[count].c_str());
 		count++;
 	}
+
+	count = 1;
+	for (auto squad : _dropSquad)
+	{
+		BWAPI::Broodwar->drawTextMap(squad.getSquadPosition(), "%s", dropSquadCallSigns[count].c_str());
+		count++;
+	}
+
+	/*for (auto enemy : _flareBD)
+	{
+		if (enemy.second.first && enemy.second.first->exists())
+		{
+			BWAPI::Broodwar->drawTextMap(enemy.second.first->getPosition(), "inDB");
+		}
+	}
+
+	for (auto enemy : BWAPI::Broodwar->enemy()->getUnits())
+	{
+		if (enemy && enemy->exists())
+		{
+			if (enemy->isBlind())
+			{
+				BWAPI::Broodwar->drawCircleMap(enemy->getPosition(), 5, BWAPI::Colors::Grey, true);
+			}
+		}
+	}*/
 }
