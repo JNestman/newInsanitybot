@@ -19,6 +19,8 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	std::map<BWAPI::Position, BWEM::Base *>	_ownedBases = _infoManager.getOwnedBases();
 	bool needDefense = _infoManager.shouldHaveDefenseSquad(true);
 
+	gasCutOff = false;
+
 	/*****************************************************************************
 	* Worker defense
 	******************************************************************************/
@@ -392,6 +394,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 					break;
 				}
 			}
+
 			// If we don't find our base in our list, assign the worker to the first base in our list
 			// else we check our assignment
 			if (!found)
@@ -405,7 +408,8 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			{
 				workerBase->checkAssignment(it->first, _infoManager.getOwnedBases(), it->second);
 			}
-			else if (it->first->isIdle() || (workerBase->baseHasRefinery() && workerBase->getNumGasWorkers() < 3) ||
+			else if (it->first->isIdle() || 
+				(workerBase->baseHasRefinery() && !workerBase->getBaseRefinery()->isConstructing() && workerBase->getNumGasWorkers() < 3) ||
 				(it->first->isGatheringMinerals() && !workerBase->miningAssignmentExists(it->first)))
 			{
 				workerBase->checkAssignment(it->first, _infoManager.getOwnedBases(), it->second);

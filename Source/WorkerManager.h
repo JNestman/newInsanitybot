@@ -18,6 +18,8 @@ namespace insanitybot
 		int _lastCheckBuild;
 		BWAPI::Unit				_mineralClearer;
 
+		bool gasCutOff;
+
 	public:
 
 		void initialize();
