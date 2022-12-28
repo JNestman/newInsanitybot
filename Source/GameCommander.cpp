@@ -62,14 +62,15 @@ void GameCommander::infoText()
 	Broodwar->drawTextScreen(50, 30, "bullyHunters: %d", _informationManager.getBullyHunters().size());
 	Broodwar->drawTextScreen(50, 40, "isOneBasePlay: %d", _informationManager.isOneBasePlay(_informationManager.getStrategy()));
 	Broodwar->drawTextScreen(50, 50, "isTwoBasePlay: %d", _informationManager.isTwoBasePlay(_informationManager.getStrategy()));
-	Broodwar->drawTextScreen(50, 60, "isExpanding: %d", _informationManager.areExpanding());
+	Broodwar->drawTextScreen(50, 60, "isExpanding: %d", _informationManager.isExpanding());
+	Broodwar->drawTextScreen(50, 70, "targetIsDefended: %d", _informationManager.targetIsDefended());
+	//Broodwar->drawTextScreen(50, 80, "numFrontierSquadsWanted: %d", _informationManager.numFrontierSquadsNeeded());
 
 	Broodwar->drawCircleMap(_informationManager.getMainChokePos(), 10, BWAPI::Colors::Orange);
 	Broodwar->drawCircleMap(_informationManager.getNaturalChokePos(), 10, BWAPI::Colors::Red);
 	Broodwar->drawCircleMap(BWAPI::Position(_informationManager.getNatPosition()), 20, BWAPI::Colors::Green);
 	Broodwar->drawCircleMap(BWAPI::Position(_informationManager.getMainPosition()), 800, BWAPI::Colors::Cyan);
-	Broodwar->drawCircleMap(BWAPI::Position((BWAPI::Position(_informationManager.getMainPosition()).x + _informationManager.getMainChokePos().x) / 2, (BWAPI::Position(_informationManager.getMainPosition()).y + _informationManager.getMainChokePos().y) / 2), 10, BWAPI::Colors::Blue);
-
+	
 	for (auto base : _informationManager.getOwnedBases())
 	{
 		Broodwar->drawTextMap(base.first, "workers wanted: %d", base.second->numWorkersWantedHere());
@@ -94,6 +95,26 @@ void GameCommander::infoText()
 				}
 			}
 		}
+	}
+
+	if (_informationManager.getEnemyBases().size())
+	{
+		BWAPI::TilePosition center = BWAPI::TilePosition(BWAPI::TilePosition(BWAPI::Broodwar->mapWidth() / 2, BWAPI::Broodwar->mapHeight() / 2));
+
+		BWAPI::Position forwardPosition = BWAPI::Position(_informationManager.getEnemyBases().begin()->first.x + (BWAPI::Position(center).x - _informationManager.getEnemyBases().begin()->first.x) * .35,
+			_informationManager.getEnemyBases().begin()->first.y + (BWAPI::Position(center).y - _informationManager.getEnemyBases().begin()->first.y) * .35);
+
+		Broodwar->drawCircleMap(forwardPosition, 20, BWAPI::Colors::Green, true);
+
+		BWAPI::Position nukeGather = BWAPI::Position(_informationManager.getEnemyNatChokePos().x + (BWAPI::Position(center).x - _informationManager.getEnemyNatChokePos().x) * .25,
+			_informationManager.getEnemyNatChokePos().y + (BWAPI::Position(center).y - _informationManager.getEnemyNatChokePos().y) * .25);
+
+		Broodwar->drawCircleMap(nukeGather, 25, BWAPI::Colors::Red, true);
+
+		BWAPI::Position turretPositionStart = BWAPI::Position(BWAPI::Position(_informationManager.getMainPosition()).x + (BWAPI::Position(_informationManager.getEnemyMainTilePos()).x - BWAPI::Position(_informationManager.getMainPosition()).x) * .10,
+			BWAPI::Position(_informationManager.getMainPosition()).y + (BWAPI::Position(_informationManager.getEnemyMainTilePos()).y - BWAPI::Position(_informationManager.getMainPosition()).y) * .10);
+
+		Broodwar->drawCircleMap(turretPositionStart, 30, BWAPI::Colors::Cyan, true);
 	}
 }
 

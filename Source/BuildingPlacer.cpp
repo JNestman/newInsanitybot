@@ -358,10 +358,10 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 	{
 		if (_infoManager.isOneBasePlay(_infoManager.getStrategy()))
 		{
-			bool bunkerSpotBuildable = BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos())) &&
-				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 0)) &&
-				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(0, 1)) &&
-				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 1));
+			bool bunkerSpotBuildable = BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()), true) &&
+				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 0), true) &&
+				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(0, 1), true) &&
+				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 1), true);
 
 			if (bunkerSpotBuildable)
 				desiredLocation = _infoManager.getMainBunkerPos();
@@ -392,7 +392,7 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 			if (base.second->baseHasGeyser())
 			{
 				// ToDo: This check doesn't catch dead refineries that haven't been caught elsewhere
-				if (!base.second->baseHasRefinery())
+				if (!base.second->baseHasRefinery() || base.second->getBaseRefinery()->getType() != BWAPI::UnitTypes::Terran_Refinery)
 				{
 					desiredLocation = base.second->Geysers().front()->TopLeft();
 				}
@@ -973,7 +973,15 @@ BWAPI::TilePosition insanitybot::BuildingPlacer::getTurretLocation(InformationMa
 		}
 	}
 
-	return getPositionNear(BWAPI::UnitTypes::Terran_Missile_Turret, _infoManager.getMainPosition(), _infoManager.getStrategy());;
+	BWAPI::Position turretsTowardsEnemy = BWAPI::Position(_infoManager.getMainPosition());
+
+	if (_infoManager.getEnemyMainTilePos() != BWAPI::TilePosition(0, 0))
+	{
+		turretsTowardsEnemy = BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x + (BWAPI::Position(_infoManager.getEnemyMainTilePos()).x - BWAPI::Position(_infoManager.getMainPosition()).x) * .10,
+			BWAPI::Position(_infoManager.getMainPosition()).y + (BWAPI::Position(_infoManager.getEnemyMainTilePos()).y - BWAPI::Position(_infoManager.getMainPosition()).y) * .10);
+	}
+
+	return getPositionNear(BWAPI::UnitTypes::Terran_Missile_Turret, BWAPI::TilePosition(turretsTowardsEnemy), _infoManager.getStrategy());;
 }
 
 bool insanitybot::BuildingPlacer::validTurretLocation(BWAPI::TilePosition targetLocation)
@@ -1066,7 +1074,8 @@ BWAPI::TilePosition insanitybot::BuildingPlacer::getPositionNear(BWAPI::UnitType
 		//Spiral out. Keep going.
 	}
 
-	return getPositionNear(building, beginingPoint, "Bio");
+	return BWAPI::Broodwar->getBuildLocation(building, beginingPoint);
+	//return getPositionNear(building, beginingPoint, "Bio");
 }
 
 BuildingPlacer & BuildingPlacer::Instance()

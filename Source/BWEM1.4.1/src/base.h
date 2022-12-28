@@ -106,6 +106,7 @@ public:
 	Mineral * getDestroyedMineral(BWAPI::Unit);
 	void onUnitDestroy(BWAPI::Unit);
 	void clearAssignmentList();
+	void clearGasAssignment();
 	void cleanUpZombieTasks();
 
 	std::map<BWAPI::Unit, BWAPI::Unitset> & getRefineryAssignments() { return refinery_Assignments; };

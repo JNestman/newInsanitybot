@@ -195,6 +195,22 @@ void Base::clearAssignmentList()
 	refinery_Assignments.clear();
 }
 
+void Base::clearGasAssignment()
+{
+	for (auto & assignment : refinery_Assignments)
+	{
+		for (auto & worker : assignment.second)
+		{
+			if (!worker || !worker->exists())
+				continue;
+
+			worker->stop();
+		}
+	}
+
+	refinery_Assignments.clear();
+}
+
 void Base::cleanUpZombieTasks()
 {
 	for (auto & assignment : mineral_Assignments)
@@ -345,7 +361,7 @@ void Base::checkAssignment(BWAPI::Unit worker, std::map<BWAPI::Position, BWEM::B
 	{
 		for (auto assignment : refinery_Assignments)
 		{
-			if (assignment.second.contains(worker))
+			if (assignment.second.size() && assignment.second.contains(worker))
 			{
 				if (!baseCommandCenter->isBeingConstructed() && baseRefinery->exists() && !baseRefinery->isBeingConstructed())
 				{
@@ -361,8 +377,9 @@ void Base::checkAssignment(BWAPI::Unit worker, std::map<BWAPI::Position, BWEM::B
 		}
 	}
 
-	// prioritize assigning gas workers
-	if (baseHasRefinery() && 3 > getNumGasWorkers())
+	// prioritize assigning gas workers if we don't have too much
+	if (baseHasRefinery() && !baseRefinery->isBeingConstructed() && 
+		3 > getNumGasWorkers())
 	{
 		assignGasWorkers(worker);
 		worker->move(baseRefinery->getPosition());
