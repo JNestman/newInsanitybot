@@ -12,9 +12,11 @@ namespace insanitybot
 		std::list <BWAPI::Unit> _medics;
 		std::list <BWAPI::Unit> _ghosts;
 
-		std::list <BWAPI::Unit> _vultures;
+		std::map <BWAPI::Unit, int> _vultures;
 		std::map <BWAPI::Unit, int> _tanks;
 		std::list <BWAPI::Unit> _goliaths;
+
+		std::map <BWAPI::Unit, int> _bcs;
 
 		BWAPI::Unit nuker;
 
@@ -30,12 +32,16 @@ namespace insanitybot
 
 		int defenseLastNeededFrame;
 
+		int mineOffset;
+		int tankMineOffset;
+
 	public:
 		Squad(BWAPI::Unit unit, bool isAllIn);
 
 		int infantrySquadSize()						{ return _marines.size() + _medics.size(); };
 		int mechSquadSize()							{ return _vultures.size() + _tanks.size() + _goliaths.size(); };
 		int specialistSquadSize()					{ return _ghosts.size(); }
+		int bcSquadSize()							{ return _bcs.size(); }
 		int frontierSquadSize()						{ return _marines.size() + _medics.size() + _vultures.size() + _tanks.size() + _goliaths.size(); };
 		int numMarines()							{ return _marines.size(); };
 		int numMedics()								{ return _medics.size(); };
@@ -43,6 +49,7 @@ namespace insanitybot
 		int numVultures()							{ return _vultures.size(); };
 		int numTanks()								{ return _tanks.size(); };
 		int numGoliaths()							{ return _goliaths.size(); };
+		int numBCs()								{ return _bcs.size(); };
 
 		std::map <BWAPI::Unit, int> getTanks()		{ return _tanks; };
 
@@ -67,15 +74,26 @@ namespace insanitybot
 		void addMarine(BWAPI::Unit unit)			{ _marines.push_back(unit); };
 		void addMedic(BWAPI::Unit unit)				{ _medics.push_back(unit); };
 		void addGhost(BWAPI::Unit unit)				{ _ghosts.push_back(unit); };
-		void addVulture(BWAPI::Unit unit)			{ _vultures.push_back(unit); };
+		void addVulture(BWAPI::Unit unit)			{ _vultures.insert(std::pair<BWAPI::Unit, int>(unit, 0));  };
 		void addTank(BWAPI::Unit unit)				{ _tanks.insert(std::pair<BWAPI::Unit, int>(unit, 0)); };
 		void addGoliath(BWAPI::Unit unit)			{ _goliaths.push_back(unit); };
+
+		void addBC(BWAPI::Unit unit)				{ _bcs.insert(std::pair<BWAPI::Unit, int>(unit, 0)); };
 
 		void attack(BWAPI::Position attackPoint, BWAPI::Position forwardGather, std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>>& _flareBD);
 		void attack(BWAPI::Unit target, std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>>& _flareBD);
 		void gather(BWAPI::Position gatherPoint, std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>>& _flareBD);
 
 		void protect();
+
+		// Units have very similar commands across our three main squad commands, here we'll try to thin the code a bit
+		void handleMarines(BWAPI::Position attackPoint, BWAPI::Position forwardGather, bool haveGathered, std::list<BWAPI::Unit>& injured, 
+							std::list<BWAPI::Bullet> _activePsiStorms, std::list<BWAPI::Unit> _activeScarabs, BWAPI::Unitset enemyUnits, BWAPI::Unit target, BWAPI::Position gatherPoint);
+		void handleMedics(std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>>& _flareBD, std::list<BWAPI::Unit> injured, BWAPI::Position gatherPoint);
+
+
+		void handleBCs(BWAPI::Position attackPoint, BWAPI::Position forwardGather, bool haveGathered, BWAPI::Unitset enemyUnits, BWAPI::Unit target, BWAPI::Position gatherPoint);
+
 
 		void handleNuker(BWAPI::Position target);
 		void setNuker();
@@ -84,7 +102,14 @@ namespace insanitybot
 
 		void groundKiteMicro(BWAPI::Unit & friendly, BWAPI::Position enemy);
 
-		BWAPI::Position stormDodge(BWAPI::Position friendly, BWAPI::Position enemy);
+		BWAPI::Position stormDodge(BWAPI::Position friendly, BWAPI::Position stormPos);
+		BWAPI::Position scarabDodge(BWAPI::Position friendly, BWAPI::Position scarabTargetPos);
+
+		std::list<BWAPI::Bullet> getPsiStorms();
+		std::list<BWAPI::Unit> getScarabs();
+
+		bool canPlantMine(BWAPI::Unit vulture);
+		bool shouldPlantMine(BWAPI::Unit vulture);
 
 		bool Squad::closeEnough(BWAPI::Position location1, BWAPI::Position location2);
 

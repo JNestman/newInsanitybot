@@ -10,15 +10,17 @@ namespace insanitybot
 		// Deletion functions
 		void checkForDeadList(std::list<BWAPI::Unit>& listToDeleteFrom);
 		void checkForDeadMap(std::map<BWAPI::Unit, int>& mapToDeleteFrom);
+		void checkForDeadTurrets(std::list<BWAPI::Unit>& listToDeleteFrom);
 		void checkForDeadCenters();
 		void checkForDeadRefineries();
 
 		// Variables
 		std::string											_strategy;
 		std::vector<std::string>							_1BaseStrat {"8RaxDef", "8RaxAgg", "1BaseMech", "TONK", "OneFacAllIn", "BBS", "MechAllIn"};
-		std::vector<std::string>							_2BaseStrat	{"SKTerran", "Mech", "Nuke"};
+		std::vector<std::string>							_2BaseStrat	{"SKTerran", "Mech", "Nuke", "BCMeme"};
 		std::vector<std::string>							_bio		{"8RaxDef", "8RaxAgg", "SKTerran", "Nuke"};
-		std::vector<std::string>							_mech		{"Mech", "1BaseMech", "TONK"};
+		std::vector<std::string>							_mech		{"Mech", "1BaseMech", "TONK", "BCMeme"};
+		std::vector<std::string>							_airStrat	{"BCMeme"};
 		std::vector<std::string>							_allIn		{ "OneFacAllIn", "BBS", "MechAllIn" };
 
 		std::list<BWAPI::UnitType>							_queue;
@@ -43,6 +45,7 @@ namespace insanitybot
 		std::list<BWAPI::Position>							_enemyStructurePositions;
 		BWAPI::Unitset										_enemyUnits;
 		bool												_enemyPool;
+		int													_enemyWorkerNumber;
 
 		std::list<BWAPI::Unit>								_neutralBuildings;
 
@@ -80,6 +83,7 @@ namespace insanitybot
 		std::map<BWAPI::Unit, int>							_vultures;
 		std::map<BWAPI::Unit, int>							_tanks;
 		std::map<BWAPI::Unit, int>							_goliaths;
+		std::map<BWAPI::Unit, int>							_bcs;
 
 		std::list<BWAPI::Unit>								_comsats;
 		int													_lastScanFrame;
@@ -106,6 +110,7 @@ namespace insanitybot
 
 		bool												_enemyHasAir;
 		bool												_enemyRushing;
+		bool												_enemyHasDtLurker;
 
 		bool												_targetDefended;
 		bool												_nukeDotDetected;
@@ -123,6 +128,7 @@ namespace insanitybot
 		void SKTerran();
 		void Nuke();
 		void Mech();
+		void BCMeme();
 		void EightRaxDef();
 		void OneBaseMech();
 		void OneFacAllIn();
@@ -176,6 +182,7 @@ namespace insanitybot
 		std::map<BWAPI::Unit, int>& getVultures()						{ return _vultures; };
 		std::map<BWAPI::Unit, int>& getTanks()							{ return _tanks; };
 		std::map<BWAPI::Unit, int>& getGoliaths()						{ return _goliaths; };
+		std::map<BWAPI::Unit, int>& getBCs()							{ return _bcs; };
 
 		std::list<BWAPI::Unit> getComsats()								{ return _comsats; };
 		std::list<BWAPI::Unit> getAddons()								{ return _addons; };
@@ -227,17 +234,21 @@ namespace insanitybot
 		bool isTwoBasePlay(std::string strat)		{ return std::find(_2BaseStrat.begin(), _2BaseStrat.end(), strat) != _2BaseStrat.end(); };
 		bool isBio(std::string strat)				{return std::find(_bio.begin(), _bio.end(), strat) != _bio.end();};
 		bool isMech(std::string strat)				{ return std::find(_mech.begin(), _mech.end(), strat) != _mech.end(); };
+		bool isAirStrat(std::string strat)			{ return std::find(_airStrat.begin(), _airStrat.end(), strat) != _airStrat.end(); };
 		bool isAllIn(std::string strat)				{ return std::find(_allIn.begin(), _allIn.end(), strat) != _allIn.end(); };
 
 		bool shouldIslandExpand()					{ return _islandExpand; };
 
 		bool enemyHasAir()							{ return _enemyHasAir; };
+		bool enemyHasDtLurker()						{ return _enemyHasDtLurker; };
 
 		bool armoryDone()							{ return getNumFinishedUnit(BWAPI::UnitTypes::Terran_Armory); };
 
 		bool covertOpsDone()						{ return getNumFinishedUnit(BWAPI::UnitTypes::Terran_Covert_Ops); };
 
 		bool targetIsDefended();
+
+		BWAPI::Position getAirGatherLocation();
 
 		//Setters
 		std::string setStrategy(std::string strat)	{ _strategy = strat; }

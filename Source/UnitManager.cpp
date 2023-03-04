@@ -14,12 +14,16 @@ insanitybot::UnitManager::UnitManager()
 	frontierSquadSizeLimit = 5;
 	needDefense = false;
 	numEmptyBases = 0;
+
+	scoutNextTarget = BWAPI::TilePosition(0, 0);
+	circlePositions.clear();
 }
 
 void UnitManager::update(InformationManager & _infoManager)
 {
 	bool stratIsBio = _infoManager.isBio(_infoManager.getStrategy());
 	bool stratIsMech = _infoManager.isMech(_infoManager.getStrategy());
+	bool stratIsAir = _infoManager.isAirStrat(_infoManager.getStrategy());
 	bool stratIsAllIn = _infoManager.isAllIn(_infoManager.getStrategy());
 	bool targetIsDefended = _infoManager.targetIsDefended();
 
@@ -42,9 +46,10 @@ void UnitManager::update(InformationManager & _infoManager)
 		assignFieldEngineers(_infoManager);
 	}
 	
+	checkDeadEngineers(_infoManager);
+
 	if (_infoManager.getFieldEngineers().size())
 	{
-		checkDeadEngineers(_infoManager);
 		handleFieldEngineers(_infoManager, nextUp);
 	}
 
@@ -56,7 +61,7 @@ void UnitManager::update(InformationManager & _infoManager)
 
 	if (_infoManager.getScout())
 	{
-		handleScout(_infoManager.getScout());
+		handleScout(_infoManager.getScout(), BWAPI::Position(_infoManager.getEnemyMainTilePos()));
 	}
 
 	if (stratIsBio)
@@ -71,6 +76,11 @@ void UnitManager::update(InformationManager & _infoManager)
 	else if (stratIsAllIn)
 	{
 		assignAllIn(_infoManager);
+	}
+
+	if (stratIsAir)
+	{
+		assignAir(_infoManager);
 	}
 
 	// Loop through our ghosts and make sure they are assigned to a squad
@@ -681,6 +691,50 @@ void UnitManager::update(InformationManager & _infoManager)
 		}
 	}
 
+	if (_BCsquad.size())
+	{
+		for (auto & squad : _BCsquad)
+		{
+			if (!squad.isGoodToAttack() && _infoManager.getAggression() && squad.numBCs() == 4)
+			{
+				squad.setGoodToAttack(true);
+			}
+
+			if (squad.isGoodToAttack())
+			{
+				BWAPI::Position forwardPosition = _infoManager.getAirGatherLocation();
+
+				if (_infoManager.getEnemyBases().size())
+				{
+					squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition, _flareBD);
+				}
+				else if (_infoManager.getEnemyBuildingPositions().size())
+				{
+					squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition, _flareBD);
+				}
+				else
+				{
+					squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD);
+				}
+			}
+			else
+			{
+				squad.gather(BWAPI::Position(_infoManager.getMainPosition()), _flareBD);
+			}
+		}
+
+
+		// Erase empty squads
+		for (std::list<Squad>::iterator emptySquad = _specialistSquad.begin(); emptySquad != _specialistSquad.end(); emptySquad++)
+		{
+			if (!emptySquad->specialistSquadSize())
+			{
+				_specialistSquad.erase(emptySquad);
+				break;
+			}
+		}
+	}
+
 	// Dropship
 	for (auto & dropship : _infoManager.getDropships())
 	{
@@ -1021,17 +1075,62 @@ BWAPI::Position UnitManager::getGhostForwardPoint(InformationManager & _infoMana
 	return forwardPosition;
 }
 
-void UnitManager::handleScout(BWAPI::Unit & _scout)
+void UnitManager::handleScout(BWAPI::Unit & _scout, const BWAPI::Position enemyMain)
 {
 	if (!_scout || !_scout->exists())
 		return;
 
-	if (!_scout->isMoving() || _scout->isGatheringMinerals() || _scout->isIdle())
+	if (enemyMain != BWAPI::Position(0, 0) && circlePositions.empty())
+	{
+		int numPoints = 36;
+		int radius = 400; // or whatever radius you want
+
+		for (int i = 0; i < numPoints; ++i) {
+			double angle = i * 2 * 3.14159265358979323846 / numPoints;
+			int x = static_cast<int>(enemyMain.x + radius * cos(angle));
+			int y = static_cast<int>(enemyMain.y + radius * sin(angle));
+
+			BWAPI::TilePosition edge = BWAPI::TilePosition(BWAPI::Broodwar->mapWidth(), BWAPI::Broodwar->mapHeight());
+
+			if (x < 0)
+				x = 10;
+			if (x >= BWAPI::Position(edge).x)
+				x = BWAPI::Position(edge).x - 10;
+			if (y < 0)
+				y = 10;
+			if (y >= BWAPI::Position(edge).y)
+				y = BWAPI::Position(edge).y - 10;
+
+			circlePositions.push_back(BWAPI::Position(x, y));
+		}
+	}
+
+	if (enemyMain == BWAPI::Position(0,0) &&
+		(!_scout->isMoving() || _scout->isGatheringMinerals() || 
+		_scout->isIdle() || BWAPI::Broodwar->isExplored(scoutNextTarget)))
 	{
 		for (auto location : theMap.StartingLocations())
 		{
 			if (!BWAPI::Broodwar->isExplored(location))
+			{
 				_scout->move(BWAPI::Position(location));
+				scoutNextTarget = location;
+				break;
+			}
+		}
+	}
+	else if (enemyMain != BWAPI::Position(0, 0) && !circlePositions.empty())
+	{
+		if (_scout->getDistance(circlePositions.front()) < 64 || 
+			!BWAPI::Broodwar->isWalkable(BWAPI::WalkPosition(circlePositions.front())) ||
+			!BWAPI::Broodwar->getUnitsInRectangle(circlePositions.front(), circlePositions.front() + BWAPI::Position(1,1), BWAPI::Filter::IsBuilding).empty())
+		{
+			circlePositions.push_back(circlePositions.front());
+			circlePositions.pop_front();
+		}
+		else
+		{
+			_scout->move(circlePositions.front());
 		}
 	}
 }
@@ -1330,6 +1429,23 @@ bool insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio, boo
 	return false;
 }
 
+bool insanitybot::UnitManager::assignAirSquad(BWAPI::Unit unassigned)
+{
+	for (auto & squad : _BCsquad)
+	{
+		if (unassigned->getType() == BWAPI::UnitTypes::Terran_Battlecruiser && squad.numBCs() >= 4)
+			continue;
+
+		if (unassigned->getType() == BWAPI::UnitTypes::Terran_Battlecruiser)
+		{
+			squad.addBC(unassigned);
+			return true;
+		}
+	}
+
+	_BCsquad.push_back(Squad(unassigned, false));
+	return true;
+}
 /*****************************************************
 * Handle bunker and squad assignments
 ******************************************************/
@@ -1357,7 +1473,9 @@ void UnitManager::assignBio(InformationManager & _infoManager)
 				}
 				else if (bunker->isConstructing())
 				{
-					marine.first->move(bunker->getPosition());
+					if (!_infoManager.closeEnough(bunker->getPosition(), marine.first->getPosition()))
+						marine.first->move(bunker->getPosition());
+
 					loading = true;
 					break;
 				}
@@ -1394,7 +1512,6 @@ void UnitManager::assignMech(InformationManager & _infoManager)
 	//Load marines into bunkers
 	for (auto & marine : _infoManager.getMarines())
 	{
-
 		if (!marine.first->exists())
 		{
 			continue;
@@ -1568,6 +1685,26 @@ void UnitManager::assignAllIn(InformationManager & _infoManager)
 	}
 }
 
+void UnitManager::assignAir(InformationManager & _infoManager)
+{
+	// Loop through our BCs and make sure they are assigned to a squad
+	for (auto & BC : _infoManager.getBCs())
+	{
+		if (!BC.first || !BC.first->exists() || BC.first->isCompleted())
+		{
+			continue;
+		}
+
+		if (BC.second == 0)
+		{
+			if (assignAirSquad(BC.first))
+			{
+				BC.second = 1;
+			}
+		}
+	}
+}
+
 /***************************************************************
 * Field Engineer functions
 ***************************************************************/
@@ -1626,6 +1763,9 @@ void UnitManager::assignFieldEngineers(InformationManager & _infoManager)
 
 void UnitManager::checkDeadEngineers(InformationManager & _infoManager)
 {
+	if (!_infoManager.getFieldEngineers().size())
+		return;
+
 	std::list<BWAPI::Unit> & _fieldEngineers = _infoManager.getFieldEngineers();
 	for (std::list<BWAPI::Unit>::iterator deadEngineer = _fieldEngineers.begin(); deadEngineer != _fieldEngineers.end();)
 	{
@@ -1715,7 +1855,9 @@ void UnitManager::handleFieldEngineers(InformationManager & _infoManager, BWAPI:
 
 		for (auto & engineer : _infoManager.getFieldEngineers())
 		{
-			if (!engineer->isRepairing())
+			if (!engineer || !engineer->exists())
+				continue;
+			else if (!engineer->isRepairing())
 				engineer->repair(closestInjuredTank);
 		}
 	}
@@ -1723,7 +1865,9 @@ void UnitManager::handleFieldEngineers(InformationManager & _infoManager, BWAPI:
 	{
 		for (auto & engineer : _infoManager.getFieldEngineers())
 		{
-			if (closestTankToTarget == NULL || !closestTankToTarget->exists())
+			if (!engineer || !engineer->exists())
+				continue;
+			else if (closestTankToTarget == NULL || !closestTankToTarget->exists())
 				engineer->move(_infoManager.getOwnedBases().begin()->first);
 			else if (!_infoManager.closeEnough(engineer->getPosition(), closestTankToTarget->getPosition()))
 				engineer->move(closestTankToTarget->getPosition());

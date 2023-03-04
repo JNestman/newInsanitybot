@@ -36,7 +36,7 @@ namespace insanitybot
 
 		bool validTurretLocation(BWAPI::TilePosition targetLocation);
 
-		BWAPI::TilePosition getPositionNear(BWAPI::UnitType building, BWAPI::TilePosition beginingPoint, std::string strat);
+		BWAPI::TilePosition getPositionNear(BWAPI::UnitType building, BWAPI::TilePosition beginingPoint, bool isMech);
 
 		static BuildingPlacer & Instance();
 	};

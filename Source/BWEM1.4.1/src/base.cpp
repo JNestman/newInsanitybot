@@ -299,16 +299,22 @@ bool Base::isGasWorker(BWAPI::Unit worker)
 
 bool Base::onTurretDestroy()
 {
-	for (BWAPI::Unitset::iterator turret = turrets.begin(); turret != turrets.end(); turret++)
+	std::vector<BWAPI::Unit> turretsToDelete;
+
+	for (const auto& turret : turrets)
 	{
-		if (!(*turret) || !(*turret)->exists())
+		if (!turret || !turret->exists())
 		{
-			turrets.erase(turret);
-			return true;
+			turretsToDelete.push_back(turret);
 		}
 	}
 
-	return false;
+	for (const auto& turret : turretsToDelete)
+	{
+		turrets.erase(turret);
+	}
+
+	return !turretsToDelete.empty();
 }
 
 int Base::numWorkersWantedHere()
@@ -431,6 +437,26 @@ void Base::checkAssignment(BWAPI::Unit worker, std::map<BWAPI::Position, BWEM::B
 			}
 		}
 	}
+
+	/*// If we're out of everything else, go harvest minerals somewhere
+	Unit closestMineral = nullptr;
+
+	// find the closest mineral
+	for (auto allMinerals : BWAPI::Broodwar->getStaticMinerals()) {
+		if (allMinerals && allMinerals->exists() &&
+			allMinerals->getType().isMineralField()) {
+			if (closestMineral == nullptr
+				|| worker->getDistance(allMinerals) < worker->getDistance(closestMineral)) {
+				closestMineral = allMinerals;
+			}
+		}
+	}
+
+	// if a mineral patch was found, send the worker to gather it
+	if (closestMineral != nullptr && !worker->isGatheringMinerals() && 
+		!worker->isMoving()) {
+		worker->gather(closestMineral, false);
+	}*/
 }
 
 bool Base::miningAssignmentExists(BWAPI::Unit worker)

@@ -158,6 +158,49 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			continue;
 		}
 
+		if (!bunker->isBeingConstructed() && (_infoManager.getOwnedBases().size() < 2 || 
+			(_infoManager.getOwnedBases().size() == 2 && _infoManager.getNumUnfinishedUnit(BWAPI::UnitTypes::Terran_Command_Center))) &&
+			_infoManager.isTwoBasePlay(_infoManager.getStrategy()))
+		{
+			needRepair = true;
+			if (_repairWorkers.size() > 2)
+			{
+				for (auto & worker : _repairWorkers)
+				{
+					if (!worker || !worker->exists())
+					{
+						for (std::list<BWAPI::Unit>::iterator deadRepairer = _repairWorkers.begin(); deadRepairer != _repairWorkers.end();)
+						{
+							if ((*deadRepairer) || !(*deadRepairer)->exists())
+							{
+								deadRepairer = _repairWorkers.erase(deadRepairer);
+							}
+							else
+							{
+								deadRepairer++;
+							}
+						}
+
+						break;
+					}
+
+					if (bunker->getHitPoints() < bunker->getType().maxHitPoints())
+					{
+						if (!worker->isRepairing())
+							worker->repair(bunker);
+					}
+					else
+					{
+						if (!_infoManager.closeEnough(worker->getPosition(), bunker->getPosition()))
+							worker->move(bunker->getPosition());
+					}
+				}
+			}
+			else
+			{
+				assignRepairWorkers(_workers, _repairWorkers, bunker, _ownedBases);
+			}
+		}
 		if (bunker->isAttacking() || bunker->isUnderAttack() || (bunker->getHitPoints() < bunker->getType().maxHitPoints() && !bunker->isBeingConstructed()))
 		{
 			needRepair = true;
@@ -379,6 +422,29 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			{
 				Broodwar << it->first->getType() << " found in worker list." << std::endl;
 				continue;
+			}
+
+			if (it->first->isIdle())
+			{
+				bool blockerDetected = false;
+				for (auto base : _infoManager.getOtherBases())
+				{
+					if (it->first->getDistance(base.first) < 64)
+					{
+						blockerDetected = true;
+						break;
+					}
+				}
+
+				if (blockerDetected)
+				{
+					if (it->first->getPosition().x - 64 < 0)
+						it->first->move(BWAPI::Position(it->first->getPosition().x - 64, it->first->getPosition().y));
+					else
+						it->first->move(BWAPI::Position(it->first->getPosition().x + 128, it->first->getPosition().y));
+
+					continue;
+				}
 			}
 
 			// Redundant check to make sure all workers are assigned to non-destroyed bases
@@ -934,6 +1000,7 @@ void insanitybot::WorkerManager::assignRepairWorkers(std::map<BWAPI::Unit, BWEM:
 			}
 
 			if (it->first->getType().isWorker() && !it->first->isConstructing() &&
+				!it->first->isCarryingGas() && !it->first->isGatheringGas() &&
 				it->first->getDistance(building->getPosition()) < shortestDistance)
 			{
 				shortestDistance = it->first->getDistance(building->getPosition());
