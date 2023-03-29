@@ -1,5 +1,6 @@
 #include "InformationManager.h"
 #include <time.h>
+#include "BuildOrder.h"
 
 
 namespace { auto & theMap = BWEM::Map::Instance(); }
@@ -9,19 +10,25 @@ using namespace insanitybot;
 insanitybot::InformationManager::InformationManager()
 	:	_self(BWAPI::Broodwar->self())
 	, _enemy(BWAPI::Broodwar->enemy())
+	, _buildOrder(new BuildOrder())
 {
 	_attack = false;
 	_islandExpand = false;
 	_lastScanFrame = 0;
 	_enemyHasAir = false;
 	_enemyRushing = false;
+	_enemyHasDtLurker = false;
 	_enemyPool = false;
+	_enemyCyberCore = false;
+	_enemyWorkerNumber = 0;
 	_targetDefended = false;
 	_nukeDotDetected = false;
 	_waitASec = 0;
 
 	std::srand(time(NULL));
-	int _randomChoice = std::rand() % 2;
+	int _randomChoice = std::rand() % 3;
+
+	BWAPI::Broodwar << "Choice: " << _randomChoice << std::endl;
 
 	if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
 	{
@@ -39,7 +46,6 @@ insanitybot::InformationManager::InformationManager()
 			break;
 		}
 
-		BWAPI::Broodwar << "Enemy: " << _enemy->getName() << std::endl;
 		if (_enemy->getName() == "Tomas Vajda")
 		{
 			_strategy = "OneFacAllIn";
@@ -50,25 +56,35 @@ insanitybot::InformationManager::InformationManager()
 		switch (_randomChoice)
 		{
 		case 1:
+			_strategy = "MechVT";
+			break;
+		case 2:
 			_strategy = "MechAllIn";
 			break;
 		default:
 			_strategy = "Mech";
 			break;
 		}
+		//_strategy = "MechVT";
+
+		//_strategy = "BCMeme";
+
 	}
 	else // Random
 	{
 		switch (_randomChoice)
 		{
 		case 1:
-			_strategy = "oneFacAllIn";
+			_strategy = "OneFacAllIn";
 			break;
 		default:
 			_strategy = "Mech";
 			break;
 		}
 	}
+
+	// Initialize the build order
+	_buildOrder->initialize(_strategy);
 }
 
 /****************************************************
@@ -373,82 +389,115 @@ void InformationManager::initialize()
 *****************************************************/
 void InformationManager::checkForDeadList(std::list<BWAPI::Unit>& listToDeleteFrom)
 {
-	if (!listToDeleteFrom.size())
+	if (listToDeleteFrom.empty())
 		return;
 
-	for (std::list<BWAPI::Unit>::iterator unit = listToDeleteFrom.begin(); unit != listToDeleteFrom.end();)
-	{
-		if (!(*unit)->exists())
-		{
-			// Turrets need to be properly checked and removed from bases
-			if ((*unit)->getType() == BWAPI::UnitTypes::Terran_Missile_Turret)
-			{
-				for (auto base : _ownedBases)
-				{
-					if (base.second->onTurretDestroy())
-					{
-						goto endOfChecks;
-					}
-				}
-
-				for (auto base : _ownedIslandBases)
-				{
-					if (base.second->onTurretDestroy())
-					{
-						goto endOfChecks;
-					}
-				}
-
-				for (auto base : _otherBases)
-				{
-					if (base.second->onTurretDestroy())
-					{
-						goto endOfChecks;
-					}
-				}
-
-				for (auto base : _enemyBases)
-				{
-					if (base.second->onTurretDestroy())
-					{
-						goto endOfChecks;
-					}
-				}
-
-				for (auto base : _islandBases)
-				{
-					if (base.second->onTurretDestroy())
-					{
-						goto endOfChecks;
-					}
-				}
-			}
-
-			endOfChecks:
-			unit = listToDeleteFrom.erase(unit);
-		}
-		else
-		{
-			unit++;
-		}
-	}
+	listToDeleteFrom.remove_if([](const BWAPI::Unit& unit) { return !unit || !unit->exists(); });
 }
 
 void InformationManager::checkForDeadMap(std::map<BWAPI::Unit, int>& mapToDeleteFrom)
 {
-	if (!mapToDeleteFrom.size())
+	if (mapToDeleteFrom.empty())
 		return;
 
-	for (std::map<BWAPI::Unit, int>::iterator unit = mapToDeleteFrom.begin(); unit != mapToDeleteFrom.end();)
+	std::vector<BWAPI::Unit> unitsToDelete;
+
+	for (auto it = mapToDeleteFrom.begin(); it != mapToDeleteFrom.end(); it++)
 	{
-		if (!unit->first->exists())
+		if (!it->first || !it->first->exists())
 		{
-			unit = mapToDeleteFrom.erase(unit);
+			unitsToDelete.push_back(it->first);
 		}
-		else
+	}
+
+	for (auto unit : unitsToDelete)
+	{
+		mapToDeleteFrom.erase(unit);
+	}
+}
+
+void InformationManager::checkForDeadTurrets(std::list<BWAPI::Unit>& listToDeleteFrom)
+{
+	std::vector<BWAPI::Unit> unitsToDelete;
+
+	for (const auto& unit : listToDeleteFrom)
+	{
+		if (!unit || !unit->exists())
 		{
-			unit++;
+			unitsToDelete.push_back(unit);
+
+			bool turretFound = false;
+
+			for (auto& base : _ownedBases)
+			{
+				if (base.second->onTurretDestroy())
+				{
+					turretFound = true;
+					break;
+				}
+			}
+
+			if (turretFound)
+			{
+				continue;
+			}
+
+			for (auto& base : _ownedIslandBases)
+			{
+				if (base.second->onTurretDestroy())
+				{
+					turretFound = true;
+					break;
+				}
+			}
+
+			if (turretFound)
+			{
+				continue;
+			}
+
+			for (auto& base : _otherBases)
+			{
+				if (base.second->onTurretDestroy())
+				{
+					turretFound = true;
+					break;
+				}
+			}
+
+			if (turretFound)
+			{
+				continue;
+			}
+
+			for (auto& base : _enemyBases)
+			{
+				if (base.second->onTurretDestroy())
+				{
+					turretFound = true;
+					break;
+				}
+			}
+
+			if (turretFound)
+			{
+				continue;
+			}
+
+			for (auto& base : _islandBases)
+			{
+				if (base.second->onTurretDestroy())
+				{
+					turretFound = true;
+					break;
+				}
+			}
 		}
+	}
+
+	for (const auto& unit : unitsToDelete)
+	{
+		listToDeleteFrom.remove(unit);
 	}
 }
 
@@ -649,11 +698,15 @@ void InformationManager::update()
 	{
 		setAggression(true);
 	}
+	else if (!getAggression() && isAirStrat(_strategy) && _bcs.size() >= 4)
+	{
+		setAggression(true);
+	}
 	else if (!getAggression() && isMech(_strategy) && _tanks.size() >= 11)
 	{
 		setAggression(true);
 	}
-	else if (!getAggression() && isAllIn(_strategy) && _tanks.size() > 1)
+	else if (!getAggression() && isAllIn(_strategy) && (_tanks.size() > 1 || (_strategy == "MechAllIn" && _vultures.size() > 10)))
 	{
 		setAggression(true);
 	}
@@ -769,7 +822,7 @@ void InformationManager::update()
 	}
 
 	//Initial Scouting
-	if (_enemyBases.size() < 1 && _workers.size() >= 7 && (!_scout || !_scout->exists()) && BWAPI::Broodwar->getFrameCount() < 20000 && !_enemyRushing)
+	if (_enemyBases.size() < 1 && _workers.size() >= 7 && (!_scout || !_scout->exists()) && BWAPI::Broodwar->getFrameCount() < 10000 && !_enemyRushing)
 	{
 		for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _workers.begin(); it != _workers.end(); it++)
 		{
@@ -800,15 +853,6 @@ void InformationManager::update()
 				break;
 			}
 		}
-	}
-	else if (_enemyBases.size() && _scout)
-	{
-		if (_scout->exists())
-		{
-			_workers.insert(std::make_pair(_scout, _ownedBases.begin()->second));
-		}
-
-		_scout = NULL;
 	}
 
 	if (BWAPI::Broodwar->getFrameCount() < 5000)
@@ -850,11 +894,12 @@ void InformationManager::update()
 	_injuredBuildings.clear();
 	_floatingBuildings.clear();
 
-	std::vector<std::reference_wrapper<std::map<BWAPI::Unit, int>>> masterUnitList = { _marines, _medics, _ghosts, _vultures, _goliaths, _tanks, _vessels, _dropships };
-	std::vector<std::reference_wrapper<std::list<BWAPI::Unit>>> masterBuildingList = { _barracks, _factories, _starports, _science, _armories, _academy, _engibays, _turrets, _bunkers, _comsats };
+	std::vector<std::reference_wrapper<std::map<BWAPI::Unit, int>>> masterUnitList = { _marines, _medics, _ghosts, _vultures, _goliaths, _tanks, _vessels, _dropships, _bcs };
+	std::vector<std::reference_wrapper<std::list<BWAPI::Unit>>> masterBuildingList = { _slugDepots, _barracks, _factories, _starports, _science, _armories, _academy, _engibays, _bunkers, _comsats };
 	
 	for (auto &unitList : masterUnitList) checkForDeadMap(unitList);
 	for (auto &buildingList : masterBuildingList) checkForDeadList(buildingList);
+	checkForDeadTurrets(_turrets);
 
 	// Command centers being lost requires a more unique solution
 	// We'll check that here for now
@@ -907,7 +952,6 @@ void InformationManager::update()
 		{
 			_injuredBuildings.push_back(myUnit);
 		}
-
 		else if (myUnit->getType().isBuilding() && myUnit->isFlying())
 		{
 			_floatingBuildings.push_back(myUnit);
@@ -945,7 +989,8 @@ void InformationManager::update()
 			}
 
 			if (_workers.find(myUnit) != _workers.end() ||
-				gotADegree || myUnit == _scout)
+				gotADegree || myUnit == _scout || myUnit == _islandBuilder ||
+				_islandWorkers.find(myUnit) != _islandWorkers.end())
 				continue;
 			
 
@@ -955,7 +1000,7 @@ void InformationManager::update()
 				{
 					//_workers.insert(std::pair<BWAPI::Unit, BWEM::Base *>(myUnit, base.second));
 					_workers.insert(std::make_pair(myUnit, base.second));
-					break;
+					goto justBuilt;
 				}
 			}
 
@@ -996,9 +1041,9 @@ void InformationManager::update()
 
 				for (auto base : _ownedBases)
 				{
-					if (myUnit->getDistance(_ownedBases.begin()->first) < closestBase)
+					if (myUnit->getDistance(base.first) < closestBase)
 					{
-						closestBase = myUnit->getDistance(_ownedBases.begin()->first);
+						closestBase = myUnit->getDistance(base.first);
 						assignedBase = base.second;
 					}
 				}
@@ -1069,6 +1114,23 @@ void InformationManager::update()
 				continue;
 
 			_goliaths.insert(std::pair<BWAPI::Unit, int>(myUnit, 0));
+		}
+		// BCs
+		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Battlecruiser && myUnit->getPlayer() == _self)
+		{
+			if (_bcs.find(myUnit) != _bcs.end())
+				continue;
+
+			_bcs.insert(std::pair<BWAPI::Unit, int>(myUnit, 0));
+		}
+		// Supply Depots
+		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Supply_Depot && myUnit->getPlayer() == _self)
+		{
+			if (std::find(_slugDepots.begin(), _slugDepots.end(), myUnit) != _slugDepots.end())
+				continue;
+
+			_slugDepots.push_back(myUnit);
+			checkQueue(myUnit);
 		}
 		// Barracks
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Barracks && myUnit->getPlayer() == _self)
@@ -1188,7 +1250,8 @@ void InformationManager::update()
 		// Insert command center as new base being taken
 		else if (myUnit->getType().isResourceDepot() && myUnit->getPlayer() == _self)
 		{
-			if (std::find(_commandCenters.begin(), _commandCenters.end(), myUnit) != _commandCenters.end())
+			if (std::find(_commandCenters.begin(), _commandCenters.end(), myUnit) != _commandCenters.end() ||
+				std::find(_islandCenters.begin(), _islandCenters.end(), myUnit) != _islandCenters.end())
 				continue;
 
 			for (std::map<BWAPI::Position, BWEM::Base *>::iterator & base = _otherBases.begin(); base != _otherBases.end(); base++)
@@ -1274,34 +1337,40 @@ void InformationManager::update()
 		}
 	}
 
-	for (auto structure : _enemyStructurePositions)
+	if (_enemyStructurePositions.size())
 	{
-		BWAPI::TilePosition structureTilePosition = BWAPI::TilePosition(structure.x / 32, structure.y / 32);
-
-		if (BWAPI::Broodwar->isVisible(structureTilePosition))
+		for (auto it = _enemyStructurePositions.begin(); it != _enemyStructurePositions.end(); )
 		{
-			bool stillThere = false;
-
-			for (auto u : BWAPI::Broodwar->enemy()->getUnits()) 
+			BWAPI::TilePosition structureTilePosition = BWAPI::TilePosition(it->x / 32, it->y / 32);
+			if (BWAPI::Broodwar->isVisible(structureTilePosition))
 			{
-				if (!u || !u->exists())
-					continue;
-
-				if ((u->getType().isBuilding()) && (u->getPosition() == structure)) 
+				bool stillThere = false;
+				for (auto u : BWAPI::Broodwar->enemy()->getUnits())
 				{
-					stillThere = true;
-					break;
+					if (!u || !u->exists()) continue;
+
+					if ((u->getType().isBuilding()) && (u->getPosition() == *it))
+					{
+						stillThere = true;
+						break;
+					}
+				}
+				if (!stillThere)
+				{
+					it = _enemyStructurePositions.erase(it);
+				}
+				else
+				{
+					++it;
 				}
 			}
-
-			// if there is no building, remove that from our list
-			if (stillThere == false) 
+			else
 			{
-				_enemyStructurePositions.remove(structure);
-				break;
+				++it;
 			}
 		}
 	}
+
 
 
 	// Attempted fix for canceled zerg structures not clearing tracked enemy bases
@@ -1402,813 +1471,86 @@ void insanitybot::InformationManager::updateBuildOrder()
 	 ******************************************************/
 	if (_queue.empty())
 	{
-		if (_strategy == "SKTerran")
+		if (_strategy == "Mech")
 		{
-			SKTerran();
+			_buildOrder->Mech(*this);
+		}
+		else if (_strategy == "MechVT")
+		{
+			_buildOrder->MechVT(*this);
 		}
 		else if (_strategy == "Nuke")
 		{
-			Nuke();
+			_buildOrder->Nuke(*this);
 		}
-		else if (_strategy == "Mech")
+		else if (_strategy == "BCMeme")
 		{
-			Mech();
+			_buildOrder->BCMeme(*this);
 		}
 		else if (_strategy == "8RaxDef")
 		{
-			EightRaxDef();
+			_buildOrder->EightRaxDef(*this);
 		}
 		else if (_strategy == "1BaseMech")
 		{
-			OneBaseMech();
+			_buildOrder->OneBaseMech(*this);
 		}
 		else if (_strategy == "OneFacAllIn")
 		{
-			OneFacAllIn();
+			_buildOrder->OneFacAllIn(*this);
 		}
 		else if (_strategy == "MechAllIn")
 		{
-			MechAllIn();
+			_buildOrder->MechAllIn(*this);
+		}
+		else if (_strategy == "SKTerran")
+		{
+			_buildOrder->SKTerran(*this);
 		}
 
-		int extraCoverInMain = 0;
+		int extraCover = 0;
 
 		if (_enemyRace == BWAPI::Races::Zerg && _enemyHasAir)
-			extraCoverInMain = 3;
+			extraCover = 3;
+
+		if (_enemyHasDtLurker)
+		{
+			extraCover += _bunkers.size();
+
+			if (!_engibays.size() && std::find(_queue.begin(), _queue.end(), BWAPI::UnitTypes::Terran_Engineering_Bay) == _queue.end())
+			{
+				_queue.push_back(BWAPI::UnitTypes::Terran_Engineering_Bay);
+				setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Engineering_Bay.mineralPrice());
+			}
+		}
+
+		if (_enemyHasAir && !_engibays.size() &&
+			std::find(_queue.begin(), _queue.end(), BWAPI::UnitTypes::Terran_Engineering_Bay) == _queue.end())
+		{
+			_queue.push_back(BWAPI::UnitTypes::Terran_Engineering_Bay);
+			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Engineering_Bay.mineralPrice());
+		}
+
+		int numTurretsWanted = 0;
+		numTurretsWanted += (getNumFinishedUnit(BWAPI::UnitTypes::Terran_Command_Center) - _ownedIslandBases.size()) * 3 + extraCover;
 
 		if (numEngiBaysFinished && 
-			getNumTotalUnit(BWAPI::UnitTypes::Terran_Missile_Turret) < (getNumFinishedUnit(BWAPI::UnitTypes::Terran_Command_Center) - _ownedIslandBases.size()) * 3 + extraCoverInMain &&
-			(_enemyRace == BWAPI::Races::Zerg || _enemyHasAir))
+			getNumTotalUnit(BWAPI::UnitTypes::Terran_Missile_Turret) < numTurretsWanted &&
+			((_enemyRace == BWAPI::Races::Zerg || _enemyHasAir) ||
+			extraCover == 1))
 		{
 			_queue.push_back(BWAPI::UnitTypes::Terran_Missile_Turret);
 			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Missile_Turret.mineralPrice());
 		}
 	}
 }
-	/**************************************************
-	 * a very common pattern in TvZ is this:
-	 * 1 barracks
-	 * expand
-	 * optional 2nd barracks
-	 * academy and ebay (then stim and +1 weapons)
-	 * 3 barracks
-	 * factory (unused but needed for starport)
-	 * 5 barracks
-	 * starport
-	 * science facility
-	 * 2nd starport
-	 * 7 barracks
-	 * produce marine+medic+vessel off 7 barracks+2 port until main is about to run out
-	 * or in TvP, going mech, on two bases:
-	 * - macro play would be 3 fac + upgrades + 3rd base
-	 * - pressure into transition would be 4 fac
-	 * - all-in aggression would be 5 or 6 fac
-	 * TvT looks similar but i'm less familiar
-	 * 5 fac still being very aggressive
-	 * if memes = nuke you can absolutely do that with the pattern i outlined above -- just swap the 2nd starport for nuke silo
-	***************************************************/
 
-/**************************************************
- * Fast expand, M-M + Vessel into aggressive play
-***************************************************/
-void insanitybot::InformationManager::SKTerran()
-{
-	int numRaxFinished = getNumFinishedUnit(BWAPI::UnitTypes::Terran_Barracks);
-	int numFactoryFinished = getNumFinishedUnit(BWAPI::UnitTypes::Terran_Factory);
-	int numStarportFinished = getNumFinishedUnit(BWAPI::UnitTypes::Terran_Starport);
-	int numEngiBaysFinished = getNumFinishedUnit(BWAPI::UnitTypes::Terran_Engineering_Bay);
-	bool hasAcademy = _academy.size();
-	bool hasScience = _science.size();
-
-	if (!_initialBarracks)
-	{
-		if (_self->minerals() > 100 && getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) > 0)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-			_initialBarracks = true;
-		}
-	}
-	else
-	{
-		// 2nd barracks
-		if (numRaxFinished <= 1 && (_ownedBases.size() >= 2 || _self->deadUnitCount(BWAPI::UnitTypes::Terran_Command_Center) > 1) && _barracks.size() <= 1
-			&& _marines.size() > 2)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-		}
-
-		// 3rd rax, academy, and engibay
-		if (numRaxFinished == 2 && _barracks.size() == 2 && (_marines.size() > 8 || _self->minerals() > 300))
-		{
-			if (!hasAcademy)
-			{
-				_queue.push_back(BWAPI::UnitTypes::Terran_Academy);
-				setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Academy.mineralPrice());
-			}
-			if (getNumTotalUnit(BWAPI::UnitTypes::Terran_Engineering_Bay) < 1)
-			{
-				_queue.push_back(BWAPI::UnitTypes::Terran_Engineering_Bay);
-				setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Engineering_Bay.mineralPrice());
-			}
-
-			_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-		}
-
-		// fact for port
-		if (hasAcademy && _factories.size() < 1 && _refineries.size() &&
-			(_marines.size() > 16 || _self->minerals() > 300))
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Factory);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Factory.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Factory.gasPrice());
-		}
-
-		// 5 rax and port
-		if (numFactoryFinished >= 1 && (_marines.size() > 24 || _self->minerals() > 300) && _starports.size() == 0)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-			_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-			_queue.push_back(BWAPI::UnitTypes::Terran_Starport);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Starport.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Starport.gasPrice());
-		}
-
-		// science facility
-		if (numStarportFinished >= 1 && !hasScience && getNumTotalUnit(BWAPI::UnitTypes::Terran_Science_Facility) < 1)
-		{
-			if (getNumTotalUnit(BWAPI::UnitTypes::Terran_Engineering_Bay) < 2)
-			{
-				_queue.push_back(BWAPI::UnitTypes::Terran_Engineering_Bay);
-				setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Engineering_Bay.mineralPrice());
-			}
-			_queue.push_back(BWAPI::UnitTypes::Terran_Science_Facility);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Science_Facility.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Science_Facility.gasPrice());
-			// 2nd port
-			_queue.push_back(BWAPI::UnitTypes::Terran_Starport);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Starport.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Starport.gasPrice());
-		}
-		else if (hasScience && _barracks.size() < 7)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-		}
-
-		// 1st expansion
-		if (getNumTotalUnit(BWAPI::UnitTypes::Terran_Marine) > 0 && _ownedBases.size() < 2)
-		{
-			if (_bunkers.size() && !closeEnough((*_bunkers.begin())->getPosition(), BWAPI::Position(_NatBunkerPos)))
-			{
-				_queue.push_back(BWAPI::UnitTypes::Terran_Bunker);
-				setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Bunker.mineralPrice());
-			}
-			else if (!_bunkers.size())
-			{
-				_queue.push_back(BWAPI::UnitTypes::Terran_Bunker);
-				setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Bunker.mineralPrice());
-			}
-			_queue.push_back(BWAPI::UnitTypes::Terran_Command_Center);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Command_Center.mineralPrice());
-		}
-
-		// Island expansions
-		if (_ownedBases.size() >= 2 && shouldExpand() && getNumFinishedUnit(BWAPI::UnitTypes::Terran_Dropship) && _islandBases.size() &&
-			!_islandExpand && _islandBuilder == NULL && !_ownedIslandBases.size())
-		{
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Command_Center.mineralPrice());
-			_islandExpand = true;
-		}
-		// all other expansions
-		else if (_ownedBases.size() >= 2 && shouldExpand() && getReservedMinerals() < 400)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Command_Center);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Command_Center.mineralPrice());
-		}
-	}
-
-	if (hasAcademy && getNumTotalUnit(BWAPI::UnitTypes::Terran_Refinery) < numGeyserBases())
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Refinery);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Refinery.mineralPrice());
-	}
-}
-
-/**************************************************
- * Fast expand, SKTerran with nukes and ghosts
-***************************************************/
-void insanitybot::InformationManager::Nuke()
-{
-	int numRaxFinished = getNumFinishedUnit(BWAPI::UnitTypes::Terran_Barracks);
-	int numFactoryFinished = getNumFinishedUnit(BWAPI::UnitTypes::Terran_Factory);
-	int numStarportFinished = getNumFinishedUnit(BWAPI::UnitTypes::Terran_Starport);
-	int numEngiBaysFinished = getNumFinishedUnit(BWAPI::UnitTypes::Terran_Engineering_Bay);
-	bool hasAcademy = _academy.size();
-	bool hasScience = _science.size();
-
-	if (!_initialBarracks)
-	{
-		if (_self->minerals() > 100 && getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) > 0)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-			_initialBarracks = true;
-		}
-	}
-	else
-	{
-		// 2nd barracks
-		if (numRaxFinished <= 1 && (_ownedBases.size() >= 2 || _self->deadUnitCount(BWAPI::UnitTypes::Terran_Command_Center) > 1) && _barracks.size() <= 1
-			&& _marines.size() > 2)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-		}
-
-		// 3rd rax, academy, and engibay
-		if (numRaxFinished == 2 && _barracks.size() == 2 && (_marines.size() > 8 || _self->minerals() > 300))
-		{
-			if (!hasAcademy)
-			{
-				_queue.push_back(BWAPI::UnitTypes::Terran_Academy);
-				setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Academy.mineralPrice());
-			}
-			if (getNumTotalUnit(BWAPI::UnitTypes::Terran_Engineering_Bay) < 1)
-			{
-				_queue.push_back(BWAPI::UnitTypes::Terran_Engineering_Bay);
-				setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Engineering_Bay.mineralPrice());
-			}
-
-			_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-		}
-
-		// fact for port
-		if (hasAcademy && _factories.size() < 1 && _refineries.size() &&
-			(_marines.size() > 16 || _self->minerals() > 300))
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Factory);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Factory.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Factory.gasPrice());
-		}
-
-		// 5 rax and port
-		if (numFactoryFinished >= 1 && (_marines.size() > 24 || _self->minerals() > 300) && _starports.size() == 0)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-			_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-			_queue.push_back(BWAPI::UnitTypes::Terran_Starport);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Starport.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Starport.gasPrice());
-		}
-
-		// science facility
-		if (numStarportFinished >= 1 && !hasScience && getNumTotalUnit(BWAPI::UnitTypes::Terran_Science_Facility) < 1)
-		{
-			if (getNumTotalUnit(BWAPI::UnitTypes::Terran_Engineering_Bay) < 2)
-			{
-				_queue.push_back(BWAPI::UnitTypes::Terran_Engineering_Bay);
-				setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Engineering_Bay.mineralPrice());
-			}
-			_queue.push_back(BWAPI::UnitTypes::Terran_Science_Facility);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Science_Facility.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Science_Facility.gasPrice());
-		}
-		else if (hasScience && _barracks.size() < 7)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-		}
-
-		if (getNumFinishedUnit(BWAPI::UnitTypes::Terran_Nuclear_Missile) && numFactoryFinished >= 1 && _starports.size() <= 1)
-		{
-			// 2nd port
-			_queue.push_back(BWAPI::UnitTypes::Terran_Starport);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Starport.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Starport.gasPrice());
-		}
-
-		// 1st expansion
-		if (getNumTotalUnit(BWAPI::UnitTypes::Terran_Marine) > 0 && _ownedBases.size() < 2)
-		{
-			if (_bunkers.size() && !closeEnough((*_bunkers.begin())->getPosition(), BWAPI::Position(_NatBunkerPos)))
-			{
-				_queue.push_back(BWAPI::UnitTypes::Terran_Bunker);
-				setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Bunker.mineralPrice());
-			}
-			else if (!_bunkers.size())
-			{
-				_queue.push_back(BWAPI::UnitTypes::Terran_Bunker);
-				setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Bunker.mineralPrice());
-			}
-			_queue.push_back(BWAPI::UnitTypes::Terran_Command_Center);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Command_Center.mineralPrice());
-		}
-
-		// Island expansions
-		if (_ownedBases.size() >= 2 && shouldExpand() && getNumFinishedUnit(BWAPI::UnitTypes::Terran_Dropship) && _islandBases.size() &&
-			!_islandExpand && _islandBuilder == NULL && !_ownedIslandBases.size())
-		{
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Command_Center.mineralPrice());
-			_islandExpand = true;
-		}
-		// all other expansions
-		else if (_ownedBases.size() >= 2 && shouldExpand() && getReservedMinerals() < 400)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Command_Center);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Command_Center.mineralPrice());
-		}
-	}
-
-	bool trainingNuke = false;
-
-	for (auto addon : _addons)
-	{
-		if (addon->getType() == BWAPI::UnitTypes::Terran_Nuclear_Silo && !addon->isIdle())
-		{
-			trainingNuke = true;
-			break;
-		}
-	}
-
-	if (getNumFinishedUnit(BWAPI::UnitTypes::Terran_Nuclear_Silo) && getNumTotalUnit(BWAPI::UnitTypes::Terran_Nuclear_Missile) < 1 && !trainingNuke)
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Nuclear_Missile);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Nuclear_Missile.mineralPrice());
-		setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Nuclear_Missile.gasPrice());
-	}
-
-	if (hasAcademy && getNumTotalUnit(BWAPI::UnitTypes::Terran_Refinery) < numGeyserBases())
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Refinery);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Refinery.mineralPrice());
-	}
-
-	if (!hasAcademy && _self->deadUnitCount(BWAPI::UnitTypes::Terran_Academy) > 0)
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Academy);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Academy.mineralPrice());
-	}
-}
-
-/**************************************************
- * Fast Expand into Mech
-***************************************************/
-void insanitybot::InformationManager::Mech()
-{
-	int numRaxFinished = getNumFinishedUnit(BWAPI::UnitTypes::Terran_Barracks);
-	int numFactoryFinished = getNumFinishedUnit(BWAPI::UnitTypes::Terran_Factory);
-	int numStarportFinished = getNumFinishedUnit(BWAPI::UnitTypes::Terran_Starport);
-	int numEngiBaysFinished = getNumFinishedUnit(BWAPI::UnitTypes::Terran_Engineering_Bay);
-	bool hasAcademy = _academy.size();
-	bool hasScience = _science.size();
-
-	if (!_initialBarracks)
-	{
-		if (_self->minerals() > 100 && getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) > 0)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-			_initialBarracks = true;
-		}
-	}
-	else
-	{
-		if (_barracks.size() == 0 && _self->deadUnitCount(BWAPI::UnitTypes::Terran_Barracks) > 0)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-		}
-
-		if (_engibays.size() == 0 && _self->deadUnitCount(BWAPI::UnitTypes::Terran_Engineering_Bay) > 0)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Engineering_Bay);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Engineering_Bay.mineralPrice());
-		}
-
-		// first factory
-		if (_self->gas() >= 100 && _factories.size() == 0)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Factory);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Factory.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Factory.gasPrice());
-		}
-		// second factory, engibay, academy
-		else if (numFactoryFinished == 1 && _factories.size() == 1 && _machineShops.size() && (_self->isResearching(BWAPI::TechTypes::Tank_Siege_Mode) || _self->hasResearched(BWAPI::TechTypes::Tank_Siege_Mode)))
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Factory);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Factory.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Factory.gasPrice());
-			if (_engibays.size() < 1)
-			{
-				_queue.push_back(BWAPI::UnitTypes::Terran_Engineering_Bay);
-				setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Engineering_Bay.mineralPrice());
-			}
-
-			if (!hasAcademy)
-			{
-				_queue.push_back(BWAPI::UnitTypes::Terran_Academy);
-				setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Academy.mineralPrice());
-			}
-		}
-		// third factory and armory
-		else if (numFactoryFinished == 2 && _factories.size() == 2 && (_tanks.size() > 3 || _self->minerals() > 300))
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Factory);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Factory.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Factory.gasPrice());
-			if (_armories.size() < 2)
-			{
-				_queue.push_back(BWAPI::UnitTypes::Terran_Armory);
-				setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Armory.mineralPrice());
-				setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Armory.gasPrice());
-			}
-		}
-		// forth and fifth factory
-		else if (numFactoryFinished < 5 && _factories.size() < 5 && _tanks.size() > 5)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Factory);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Factory.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Factory.gasPrice());
-			if (_armories.size() < 2)
-			{
-				_queue.push_back(BWAPI::UnitTypes::Terran_Armory);
-				setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Armory.mineralPrice());
-				setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Armory.gasPrice());
-			}
-		}
-
-		// Starport
-		if (numFactoryFinished >= 3 && _starports.size() < 1)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Starport);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Starport.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Starport.gasPrice());
-		}
-
-		// science facility
-		if (numStarportFinished >= 1 && !hasScience && getNumTotalUnit(BWAPI::UnitTypes::Terran_Science_Facility) < 1)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Science_Facility);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Science_Facility.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Science_Facility.gasPrice());
-		}
-
-
-		// 1st expansion
-		if ((getNumTotalUnit(BWAPI::UnitTypes::Terran_Marine) > 0 || _self->deadUnitCount(BWAPI::UnitTypes::Terran_Marine) == 4) && _ownedBases.size() < 2 && !shouldHaveDefenseSquad(false))
-		{
-			if (_self->deadUnitCount(BWAPI::UnitTypes::Terran_Bunker) < 1 && !_bunkers.size())
-			{
-				_queue.push_back(BWAPI::UnitTypes::Terran_Bunker);
-				setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Bunker.mineralPrice());
-			}
-
-
-			_queue.push_back(BWAPI::UnitTypes::Terran_Command_Center);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Command_Center.mineralPrice());
-		}
-		// Island expansions
-		else if (_ownedBases.size() >= 2 && shouldExpand() && getNumFinishedUnit(BWAPI::UnitTypes::Terran_Dropship) && _islandBases.size() &&
-			!_islandExpand && _islandBuilder == NULL && !_ownedIslandBases.size())
-		{
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Command_Center.mineralPrice());
-			_islandExpand = true;
-		} // Other Expansions
-		else if (_ownedBases.size() >= 2 && shouldExpand() && (_self->minerals() > 800 || BWAPI::Broodwar->getFrameCount() > 20000) &&
-			!_islandExpand)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Command_Center);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Command_Center.mineralPrice());
-		}
-
-		// Factory up to 7
-		if (_factories.size() < 7 && numFactoryFinished >= 5 && _ownedBases.size() > 2 && _self->minerals() > 300 && _self->gas() > 150)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Factory);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Factory.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Factory.gasPrice());
-		}
-
-		if (!hasAcademy && _self->deadUnitCount(BWAPI::UnitTypes::Terran_Academy) > 0)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Academy);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Academy.mineralPrice());
-		}
-
-		// Geysers
-		if (numRaxFinished && getNumTotalUnit(BWAPI::UnitTypes::Terran_Refinery) < numGeyserBases() &&
-			getNumFinishedUnit(BWAPI::UnitTypes::Terran_Command_Center) >= numGeyserBases())
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Refinery);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Refinery.mineralPrice());
-		}
-	}
-}
-
-/**************************************************
- * Anti-Rush Builds
-***************************************************/
-void insanitybot::InformationManager::EightRaxDef()
-{
-	int numRaxFinished = getNumFinishedUnit(BWAPI::UnitTypes::Terran_Barracks);
-
-	if (_marines.size() > 18)
-	{
-		if (_enemyRace == BWAPI::Races::Zerg)
-			_strategy = "Nuke";
-		else
-			_strategy = "Mech";
-
-		_enemyRushing = false;
-		return;
-	}
-
-	if (!_initialBarracks || _barracks.size() < 1)
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-		_initialBarracks = true;
-	}
-	else if (numRaxFinished && _bunkers.size() < 1)
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Bunker);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Bunker.mineralPrice());
-	}
-	else if (_bunkers.size() && _barracks.size() < 2 && (_marines.size() > 3 || _self->minerals() > 300))
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-	}
-
-	if (numRaxFinished >= 2 && !getRefineries().size())
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Refinery);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Refinery.mineralPrice());
-	}
-	else if (numRaxFinished && getRefineries().size() && !getAcademy().size())
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Academy);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Academy.mineralPrice());
-	}
-
-	if (numRaxFinished >= 2 && !getEngibays().size() && _self->minerals() > 200)
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Engineering_Bay);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Engineering_Bay.mineralPrice());
-	}
-}
-
-// Defensive Mech
-void insanitybot::InformationManager::OneBaseMech()
-{
-	int numRaxFinished = getNumFinishedUnit(BWAPI::UnitTypes::Terran_Barracks);
-
-	if (_tanks.size() > 2)
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Academy);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Academy.mineralPrice());
-
-		if (_enemyRace == BWAPI::Races::Zerg)
-			_strategy = "SKTerran";
-		else
-			_strategy = "Mech";
-
-		_enemyRushing = false;
-		return;
-	}
-
-	if (!_initialBarracks || _barracks.size() < 1)
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-		_initialBarracks = true;
-	}
-	else if (numRaxFinished && _bunkers.size() + _self->deadUnitCount(BWAPI::UnitTypes::Terran_Bunker) < 1)
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Bunker);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Bunker.mineralPrice());
-	}
-	else if ((_bunkers.size() || _self->deadUnitCount(BWAPI::UnitTypes::Terran_Bunker) > 0) && _barracks.size() && _refineries.size() < 1)
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Refinery);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Refinery.mineralPrice());
-	}
-	else if (_barracks.size() && _self->gas() > 100 && _factories.size() < 2)
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Factory);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Factory.mineralPrice());
-		setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Factory.gasPrice());
-	}
-
-	if (_tanks.size() && !_engibays.size())
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Engineering_Bay);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Engineering_Bay.mineralPrice());
-	}
-}
-
-/**********************************************
-* One base all in
-***********************************************/
-// All in Bio Mech
-void insanitybot::InformationManager::OneFacAllIn()
-{
-	bool needDetection = false;
-
-	for (auto unit : _enemyUnits)
-	{
-		if (unit && unit->exists())
-		{
-			if (unit->isCloaked() || unit->isBurrowed())
-			{
-				needDetection = true;
-				break;
-			}
-		}
-	}
-
-	int numRaxFinished = getNumFinishedUnit(BWAPI::UnitTypes::Terran_Barracks);
-
-	if (!_initialBarracks && _workers.size() >= 8 && getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) > 0)
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-		_initialBarracks = true;
-	}
-	else
-	{
-		if (_marines.size() && _bunkers.size() + _self->deadUnitCount(BWAPI::UnitTypes::Terran_Bunker) < 1)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Bunker);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Bunker.mineralPrice());
-		}
-
-		if (_barracks.size() && _refineries.size() < 1 && getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) > 0)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Refinery);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Refinery.mineralPrice());
-		}
-		else if (_barracks.size() < 2 && _refineries.size() && _workers.size() > 15 && getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) > 0 &&
-			(_self->hasResearched(BWAPI::TechTypes::Tank_Siege_Mode) || _self->isResearching(BWAPI::TechTypes::Tank_Siege_Mode)))
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-		}
-		else if (_barracks.size() < 3 &&  _self->minerals() > 300 && _self->hasResearched(BWAPI::TechTypes::Tank_Siege_Mode))
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-		}
-		else if (((_barracks.size() <= 3 && _self->minerals() > 300 && _self->hasResearched(BWAPI::TechTypes::Tank_Siege_Mode)) ||
-			_enemyHasAir) && !_engibays.size())
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Engineering_Bay);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Engineering_Bay.mineralPrice());
-		}
-
-		if (_barracks.size() && _self->gas() > 100 && _factories.size() < 1)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Factory);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Factory.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Factory.gasPrice());
-		}
-
-		if (_barracks.size() && _factories.size() && _academy.size() < 1 && _marines.size() > 5 && 
-			_tanks.size() && (_self->isResearching(BWAPI::TechTypes::Tank_Siege_Mode) || _self->hasResearched(BWAPI::TechTypes::Tank_Siege_Mode)))
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Academy);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Academy.mineralPrice());
-		}
-
-		if (_factories.size() && _self->minerals() > 500 && _self->gas() > 300 && _armories.size() < 1)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Armory);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Armory.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Armory.gasPrice());
-		}
-
-		// Starport for detection
-		if (((_factories.size() && _tanks.size() > 6) || needDetection) && !_starports.size())
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Starport);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Starport.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Starport.gasPrice());
-		}
-
-		if (getNumFinishedUnit(BWAPI::UnitTypes::Terran_Starport) && !_science.size())
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Science_Facility);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Science_Facility.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Science_Facility.gasPrice());
-		}
-
-		if (shouldExpand())
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Command_Center);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Command_Center.mineralPrice());
-		}
-
-		// Geysers
-		if (numRaxFinished && getNumTotalUnit(BWAPI::UnitTypes::Terran_Refinery) < numGeyserBases() &&
-			getNumFinishedUnit(BWAPI::UnitTypes::Terran_Command_Center) >= numGeyserBases() && 
-			_ownedBases.size() > 1)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Refinery);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Refinery.mineralPrice());
-		}
-	}
-}
-
-// Limited bio mech all in
-void insanitybot::InformationManager::MechAllIn()
-{
-	int numRaxFinished = getNumFinishedUnit(BWAPI::UnitTypes::Terran_Barracks);
-
-	if (!_initialBarracks && _workers.size() >= 8 && getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) > 0)
-	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
-		setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
-		_initialBarracks = true;
-	}
-	else
-	{
-		if (_barracks.size() && _refineries.size() < 1 && getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) > 0)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Refinery);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Refinery.mineralPrice());
-		}
-		else if (((_barracks.size() && _self->minerals() > 300 && _self->hasResearched(BWAPI::TechTypes::Tank_Siege_Mode)) ||
-			_enemyHasAir) && !_engibays.size())
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Engineering_Bay);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Engineering_Bay.mineralPrice());
-		}
-
-		if (_barracks.size() && _self->gas() > 100 && _factories.size() < 1)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Factory);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Factory.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Factory.gasPrice());
-		}
-		else if (_barracks.size() && _factories.size() < 2 && _factories.size() == 1)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Factory);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Factory.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Factory.gasPrice());
-		}
-		/*else if (_barracks.size() && _factories.size() < 3 && _factories.size() == 2 &&
-			_self->minerals() > 300 && _self->gas() > 150)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Factory);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Factory.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Factory.gasPrice());
-		}*/
-
-		if (_barracks.size() && _factories.size() && _academy.size() < 1 && _tanks.size() > 4 &&
-			(_self->isResearching(BWAPI::TechTypes::Tank_Siege_Mode) || _self->hasResearched(BWAPI::TechTypes::Tank_Siege_Mode)))
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Academy);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Academy.mineralPrice());
-		}
-
-		if (_factories.size() && _self->minerals() > 500 && _self->gas() > 300 && _armories.size() < 1)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Armory);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Armory.mineralPrice());
-			setReservedGas(getReservedGas() + BWAPI::UnitTypes::Terran_Armory.gasPrice());
-		}
-
-		if (shouldExpand())
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Command_Center);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Command_Center.mineralPrice());
-		}
-
-		// Geysers
-		if (numRaxFinished && getNumTotalUnit(BWAPI::UnitTypes::Terran_Refinery) < numGeyserBases() &&
-			getNumFinishedUnit(BWAPI::UnitTypes::Terran_Command_Center) >= numGeyserBases() &&
-			_ownedBases.size() > 1)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Refinery);
-			setReservedMinerals(getReservedMinerals() + BWAPI::UnitTypes::Terran_Refinery.mineralPrice());
-		}
-	}
-}
-
-/**************************************************
- **************************************************
- * END BUILD ORDER SECTION
- **************************************************
-***************************************************/
-
+/********************************
+* Though event handlers are not
+* 100% reliable, we still use 
+* onUnitShow for a few vital
+* pieces of information.
+*********************************/
 void insanitybot::InformationManager::onUnitShow(BWAPI::Unit unit)
 {
 	if (!unit || !unit->exists())
@@ -2223,6 +1565,7 @@ void insanitybot::InformationManager::onUnitShow(BWAPI::Unit unit)
 			if (_enemyRace == BWAPI::Races::Zerg && !isBio(_strategy))
 			{
 				_strategy = "Nuke";
+				_buildOrder->setInitialStrategy(_strategy);
 			}
 		}
 
@@ -2231,6 +1574,19 @@ void insanitybot::InformationManager::onUnitShow(BWAPI::Unit unit)
 			if (unit->isFlying() && !unit->getType().isBuilding() && 
 				unit->getType() != BWAPI::UnitTypes::Zerg_Overlord)
 				_enemyHasAir = true;
+		}
+
+		if (!_enemyHasDtLurker)
+		{
+			if (unit->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar ||
+				unit->getType() == BWAPI::UnitTypes::Zerg_Lurker ||
+				unit->getType() == BWAPI::UnitTypes::Zerg_Lurker_Egg ||
+				((unit->getType() == BWAPI::UnitTypes::Protoss_Templar_Archives ||
+					unit->getType() == BWAPI::UnitTypes::Protoss_Citadel_of_Adun) && 
+					BWAPI::Broodwar->getFrameCount() < 8000))
+			{
+				_enemyHasDtLurker = true;
+			}
 		}
 
 		if (unit->getType().isBuilding())
@@ -2248,8 +1604,11 @@ void insanitybot::InformationManager::onUnitShow(BWAPI::Unit unit)
 			if (!found)
 				_enemyStructurePositions.push_back(unit->getPosition());
 
-			if (unit->getType() == BWAPI::UnitTypes::Zerg_Spawning_Pool && !_enemyPool)
+			if (!_enemyPool && unit->getType() == BWAPI::UnitTypes::Zerg_Spawning_Pool)
 				_enemyPool = true;
+			
+			if (!_enemyCyberCore && unit->getType() == BWAPI::UnitTypes::Protoss_Cybernetics_Core)
+				_enemyCyberCore = true;
 		}
 
 		if (unit->getType().isResourceDepot())
@@ -2414,7 +1773,7 @@ void insanitybot::InformationManager::onUnitComplete(BWAPI::Unit unit)
 // Quick check to see if we need another expansion
 bool insanitybot::InformationManager::shouldExpand()
 {
-	if (_otherBases.size() == 0)
+	if (_otherBases.size() == 0 || (_strategy == "Mech" && _tanks.size() < 8))
 		return false;
 	//else if (_self->minerals() > 1000)
 	//	return true;
@@ -2429,7 +1788,7 @@ bool insanitybot::InformationManager::shouldExpand()
 	}
 	if (baseAbove < 2 && isBio(_strategy))
 		return true;
-	else if (baseAbove < 3 && isMech(_strategy))
+	else if (baseAbove < 2 && isMech(_strategy)) // TODO: Push for a third before moving out
 		return true;
 	else if (baseAbove < 1 && isAllIn(_strategy))
 		return true;
@@ -2501,17 +1860,20 @@ bool insanitybot::InformationManager::checkForEnemyRush()
 {
 	if (_enemyRace == BWAPI::Races::Zerg)
 	{
+		int numWorker = 0;
+
+		for (auto unit : _enemyUnits)
+		{
+			if (unit->getType().isWorker())
+				numWorker += 1;
+		}
+
+		if (numWorker > _enemyWorkerNumber)
+			_enemyWorkerNumber = numWorker;
+
 		if (_enemyPool)
 		{
-			int numWorker = 0;
-
-			for (auto unit : _enemyUnits)
-			{
-				if (unit->getType().isWorker())
-					numWorker += 1;
-			}
-
-			if (numWorker <= 5)
+			if (_enemyWorkerNumber <= 5 && getEnemyBases().size() < 2 && _enemyMainPos != BWAPI::TilePosition(0,0))
 				return true;
 		}
 		
@@ -2530,7 +1892,7 @@ bool insanitybot::InformationManager::checkForEnemyRush()
 
 			if (numHatch > 1 || _enemyBases.size() > 1)
 				return false;
-			else if (numZerglings >= 4)
+			else if (numZerglings >= 6)
 				return true;
 		}
 	}
@@ -2560,9 +1922,9 @@ bool insanitybot::InformationManager::checkForEnemyRush()
 				}
 			}
 
-			if (numNexus > 1)
+			if (numNexus > 1 || _enemyBases.size() > 1)
 				return false;
-			else if (numGateways >= 2)
+			else if (numGateways >= 2 && !_enemyCyberCore)
 				return true;
 		}
 	}
@@ -2739,6 +2101,43 @@ bool InformationManager::targetIsDefended()
 	}
 	else
 		return false;
+}
+
+
+// We want our air squad to hit from a different angle. TODO: Make better
+BWAPI::Position InformationManager::getAirGatherLocation()
+{
+	BWAPI::Position target = BWAPI::Position(_mainPosition);
+	BWAPI::TilePosition center = BWAPI::TilePosition(BWAPI::Broodwar->mapWidth() / 2, BWAPI::Broodwar->mapHeight() / 2);
+	BWAPI::TilePosition edge = BWAPI::TilePosition(BWAPI::Broodwar->mapWidth(), BWAPI::Broodwar->mapHeight());;
+
+	if (_enemyMainPos != BWAPI::TilePosition(0,0) &&
+		_enemyMainPos.x < BWAPI::Broodwar->mapWidth() * .30) // left
+	{
+		return BWAPI::Position(100, BWAPI::Position(center).y);
+	}
+	else if (_enemyMainPos != BWAPI::TilePosition(0, 0))
+	{
+		return BWAPI::Position(BWAPI::Position(edge).x - 100, BWAPI::Position(center).y);
+	}
+
+	return target;
+}
+
+// Where is the dropship landing?
+BWAPI::Position InformationManager::getDropLocation(BWAPI::Unit dropship)
+{
+	BWAPI::Position target = BWAPI::Position(_enemyMainPos);
+
+	for (auto base : _enemyBases)
+	{
+		if (dropship->getDistance(base.first) < 300)
+		{
+			target = base.first;
+		}
+	}
+
+	return target;
 }
 
 InformationManager & InformationManager::Instance()

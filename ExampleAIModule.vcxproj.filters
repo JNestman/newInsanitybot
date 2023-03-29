@@ -82,6 +82,10 @@
     <ClCompile Include="Source\Squad.cpp">
       <Filter>Units\Squad</Filter>
     </ClCompile>
+    <ClCompile Include="Source\BuildOrder.cpp">
+      <Filter>Information\Build Order</Filter>
+    </ClCompile>
+    <ClCompile Include="BUILDORDER.CPP" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\BWEM1.4.1\src\area.h">
@@ -165,6 +169,9 @@
     <ClInclude Include="Source\Squad.h">
       <Filter>Units\Squad</Filter>
     </ClInclude>
+    <ClInclude Include="Source\BuildOrder.h">
+      <Filter>Information\Build Order</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="BWEM">
@@ -196,6 +203,9 @@
     </Filter>
     <Filter Include="Creation\Building">
       <UniqueIdentifier>{4d6502b2-0341-46da-8585-2a92b8293817}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Information\Build Order">
+      <UniqueIdentifier>{f90607de-8c94-41b5-bd74-4ad73c659880}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

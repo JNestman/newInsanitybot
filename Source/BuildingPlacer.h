@@ -27,7 +27,7 @@ namespace insanitybot
 		bool freeOnBottom(const BWAPI::TilePosition & tile, BWAPI::UnitType buildingType) const;
 		bool freeOnAllSides(BWAPI::Unit building) const;
 
-		bool	canBuildWithSpace(const BWAPI::TilePosition & position, const BWAPI::UnitType & b, int extraSpace) const;
+		bool canBuildWithSpace(const BWAPI::TilePosition & position, const BWAPI::UnitType & b, int extraSpace) const;
 
 		
 		BWAPI::TilePosition getDesiredLocation(BWAPI::UnitType building, InformationManager & _infoManager, std::list<BWAPI::TilePosition>);
@@ -36,7 +36,7 @@ namespace insanitybot
 
 		bool validTurretLocation(BWAPI::TilePosition targetLocation);
 
-		BWAPI::TilePosition getPositionNear(BWAPI::UnitType building, BWAPI::TilePosition beginingPoint, std::string strat);
+		BWAPI::TilePosition getPositionNear(BWAPI::UnitType building, BWAPI::TilePosition beginingPoint, bool isMech);
 
 		static BuildingPlacer & Instance();
 	};

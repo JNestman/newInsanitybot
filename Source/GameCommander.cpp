@@ -99,7 +99,7 @@ void GameCommander::infoText()
 
 	if (_informationManager.getEnemyBases().size())
 	{
-		BWAPI::TilePosition center = BWAPI::TilePosition(BWAPI::TilePosition(BWAPI::Broodwar->mapWidth() / 2, BWAPI::Broodwar->mapHeight() / 2));
+		BWAPI::TilePosition center = BWAPI::TilePosition(BWAPI::Broodwar->mapWidth() / 2, BWAPI::Broodwar->mapHeight() / 2);
 
 		BWAPI::Position forwardPosition = BWAPI::Position(_informationManager.getEnemyBases().begin()->first.x + (BWAPI::Position(center).x - _informationManager.getEnemyBases().begin()->first.x) * .35,
 			_informationManager.getEnemyBases().begin()->first.y + (BWAPI::Position(center).y - _informationManager.getEnemyBases().begin()->first.y) * .35);

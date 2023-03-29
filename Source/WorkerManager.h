@@ -34,6 +34,8 @@ namespace insanitybot
 		bool checkSupplyConstruction(int numProducers, int reservedMinerals);
 		bool closeEnough(BWAPI::Position location1, BWAPI::Position location2);
 
+		int getLastCheckSupply() { return _lastCheckSupply; };
+
 		static WorkerManager & Instance();
 	};
 }
