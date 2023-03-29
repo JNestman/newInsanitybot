@@ -348,6 +348,10 @@ int Base::getNumGasWorkers()
 int Base::getRemainingMinerals()
 {
 	int ammount = 0;
+
+	if (m_Minerals.empty())
+		return ammount;
+
 	for (auto mineral : m_Minerals)
 	{
 		if (mineral)

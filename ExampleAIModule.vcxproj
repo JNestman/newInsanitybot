@@ -99,6 +99,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="BUILDORDER.CPP" />
+    <ClCompile Include="Source\BuildOrder.cpp" />
     <ClCompile Include="Source\BWEM1.4.1\EasyBMP_1.06\EasyBMP.cpp">
       <RuntimeLibrary Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
@@ -130,6 +132,7 @@
     <ClCompile Include="Source\WorkerManager.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Source\BuildOrder.h" />
     <ClInclude Include="Source\BWEM1.4.1\EasyBMP_1.06\EasyBMP.h" />
     <ClInclude Include="Source\BWEM1.4.1\src\area.h" />
     <ClInclude Include="Source\BWEM1.4.1\src\base.h" />

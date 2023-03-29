@@ -5,8 +5,13 @@
 
 namespace insanitybot
 {
+	class BuildOrder;
+
 	class InformationManager
 	{
+
+		BuildOrder											*_buildOrder;
+
 		// Deletion functions
 		void checkForDeadList(std::list<BWAPI::Unit>& listToDeleteFrom);
 		void checkForDeadMap(std::map<BWAPI::Unit, int>& mapToDeleteFrom);
@@ -17,13 +22,14 @@ namespace insanitybot
 		// Variables
 		std::string											_strategy;
 		std::vector<std::string>							_1BaseStrat {"8RaxDef", "8RaxAgg", "1BaseMech", "TONK", "OneFacAllIn", "BBS", "MechAllIn"};
-		std::vector<std::string>							_2BaseStrat	{"SKTerran", "Mech", "Nuke", "BCMeme"};
+		std::vector<std::string>							_2BaseStrat	{"SKTerran", "Mech", "MechVT", "Nuke", "BCMeme"};
 		std::vector<std::string>							_bio		{"8RaxDef", "8RaxAgg", "SKTerran", "Nuke"};
-		std::vector<std::string>							_mech		{"Mech", "1BaseMech", "TONK", "BCMeme"};
+		std::vector<std::string>							_mech		{"Mech", "MechVT", "1BaseMech", "TONK", "BCMeme"};
 		std::vector<std::string>							_airStrat	{"BCMeme"};
 		std::vector<std::string>							_allIn		{ "OneFacAllIn", "BBS", "MechAllIn" };
 
 		std::list<BWAPI::UnitType>							_queue;
+
 		BWAPI::Player										_self;
 		BWAPI::Player										_enemy;
 		BWAPI::Race											_enemyRace;
@@ -45,6 +51,7 @@ namespace insanitybot
 		std::list<BWAPI::Position>							_enemyStructurePositions;
 		BWAPI::Unitset										_enemyUnits;
 		bool												_enemyPool;
+		bool												_enemyCyberCore;
 		int													_enemyWorkerNumber;
 
 		std::list<BWAPI::Unit>								_neutralBuildings;
@@ -65,6 +72,8 @@ namespace insanitybot
 		std::list<BWAPI::Unit>								_refineries;
 
 		BWAPI::Unit											_islandBuilder;
+
+		std::list<BWAPI::Unit>								_slugDepots;
 
 		std::list<BWAPI::Unit>								_barracks;
 		std::list<BWAPI::Unit>								_factories;
@@ -118,21 +127,13 @@ namespace insanitybot
 
 	public:
 		InformationManager();
-		~InformationManager() {};
+		~InformationManager() { delete _buildOrder; };
 		void initialize();
 		void checkQueue(BWAPI::Unit myUnit);
 		void update();
 		
 		// Build Orders here
 		void updateBuildOrder();
-		void SKTerran();
-		void Nuke();
-		void Mech();
-		void BCMeme();
-		void EightRaxDef();
-		void OneBaseMech();
-		void OneFacAllIn();
-		void MechAllIn();
 
 		bool closeEnough(BWAPI::Position location1, BWAPI::Position location2);
 		void onUnitShow(BWAPI::Unit unit);
@@ -242,6 +243,8 @@ namespace insanitybot
 		bool enemyHasAir()							{ return _enemyHasAir; };
 		bool enemyHasDtLurker()						{ return _enemyHasDtLurker; };
 
+		bool hasInitialBarracks()					{ return _initialBarracks; };
+
 		bool armoryDone()							{ return getNumFinishedUnit(BWAPI::UnitTypes::Terran_Armory); };
 
 		bool covertOpsDone()						{ return getNumFinishedUnit(BWAPI::UnitTypes::Terran_Covert_Ops); };
@@ -249,6 +252,7 @@ namespace insanitybot
 		bool targetIsDefended();
 
 		BWAPI::Position getAirGatherLocation();
+		BWAPI::Position getDropLocation(BWAPI::Unit dropship);
 
 		//Setters
 		std::string setStrategy(std::string strat)	{ _strategy = strat; }
@@ -257,6 +261,10 @@ namespace insanitybot
 		void setReservedGas(int _reserve)			{ _reservedGas = _reserve; }
 		void setMainPosition(BWAPI::TilePosition _mainPos) { _mainPosition = _mainPos; }
 		void setAggression(bool aggression)			{ _attack = aggression; };
+
+		void setInitialBarracks(bool barracks)		{ _initialBarracks = barracks; };
+
+		void setEnemyRushing(bool rushing)			{ _enemyRushing = rushing; };
 
 		void setIslandExpand(bool expand)			{ _islandExpand = expand; };
 		void setIslandBuilder(BWAPI::Unit unit)		{ _islandBuilder = unit; };

@@ -287,6 +287,47 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			}
 		}
 	}
+
+	if (!needRepair && _infoManager.getDropships().size())
+	{
+		BWAPI::Unit dropship = _infoManager.getDropships().begin()->first;
+
+		if (dropship->getHitPoints() < dropship->getType().maxHitPoints() &&
+			dropship->getDistance(BWAPI::Position(_infoManager.getMainPosition())) < 600)
+		{
+			needRepair = true;
+
+			if (_repairWorkers.size())
+			{
+				for (auto & worker : _repairWorkers)
+				{
+					if (!worker || !worker->exists())
+					{
+						for (std::list<BWAPI::Unit>::iterator deadRepairer = _repairWorkers.begin(); deadRepairer != _repairWorkers.end();)
+						{
+							if ((*deadRepairer) || !(*deadRepairer)->exists())
+							{
+								deadRepairer = _repairWorkers.erase(deadRepairer);
+							}
+							else
+							{
+								deadRepairer++;
+							}
+						}
+
+						break;
+					}
+
+					if (!worker->isRepairing())
+						worker->repair(dropship);
+				}
+			}
+			else
+			{
+				assignRepairWorkers(_workers, _repairWorkers, dropship, _ownedBases);
+			}
+		}
+	}
 	
 
 	// If we don't need to repair, clear the assigned workers

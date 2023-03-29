@@ -20,6 +20,7 @@ void CreationManager::update(InformationManager & _infoManager)
 	int gasLeft = _self->gas();
 	bool wantSilo = _infoManager.getStrategy() == "Nuke" && _infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Nuclear_Silo) < 1;
 	int comsatsBuilt = 0;
+	int supplyLeft = _self->supplyTotal() - _self->supplyUsed();
 
 	/******************************************************
 		* SCV good to go sir, SCV good to go sir, SCV good to go sir,
@@ -59,10 +60,12 @@ void CreationManager::update(InformationManager & _infoManager)
 			comsatsBuilt++;
 		}
 		else if (center->isIdle() && mineralsLeft - _infoManager.getReservedMinerals() >= center->getType().getRace().getWorker().mineralPrice() 
-			&& _infoManager.getNumWorkersOwned() < _infoManager.numWorkersWanted())
+			&& _infoManager.getNumWorkersOwned() < _infoManager.numWorkersWanted() &&
+			center->getType().getRace().getWorker().supplyRequired() <= supplyLeft)
 		{
 			center->train(center->getType().getRace().getWorker());
 			mineralsLeft = mineralsLeft - center->getType().getRace().getWorker().mineralPrice();
+			supplyLeft -= center->getType().getRace().getWorker().supplyRequired();
 		}
 	}
 
@@ -81,10 +84,12 @@ void CreationManager::update(InformationManager & _infoManager)
 				gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Comsat_Station.gasPrice();
 			}
 			else if (center->isIdle() && mineralsLeft - _infoManager.getReservedMinerals() >= center->getType().getRace().getWorker().mineralPrice() && 
-				_infoManager.getIslandWorkers().size() < _infoManager.getOwnedIslandBases().size() * 15)
+				_infoManager.getIslandWorkers().size() < _infoManager.getOwnedIslandBases().size() * 15 &&
+				center->getType().getRace().getWorker().supplyRequired() <= supplyLeft)
 			{
 				center->train(center->getType().getRace().getWorker());
 				mineralsLeft = mineralsLeft - center->getType().getRace().getWorker().mineralPrice();
+				supplyLeft -= center->getType().getRace().getWorker().supplyRequired();
 			}
 		}
 
@@ -112,6 +117,10 @@ void CreationManager::update(InformationManager & _infoManager)
 		takenPositions.clear();
 		for (BWAPI::UnitType unit : _infoManager.getQueue())
 		{
+			// Trying to add supply seperately to the reserved queue without messing up it's separate handling
+			if (unit == BWAPI::UnitTypes::Terran_Supply_Depot)
+				continue;
+
 			// This may be flawed but it makes sense for now. May run into problems if we have a large pool of reserved minerals/gas but it remains to be seen.
 			if (unit.isBuilding() && mineralsLeft >= unit.mineralPrice() && gasLeft >= unit.gasPrice())
 			{
@@ -133,11 +142,13 @@ void CreationManager::update(InformationManager & _infoManager)
 
 				for (auto & addon : _infoManager.getAddons())
 				{
-					if (addon->getType() == BWAPI::UnitTypes::Terran_Nuclear_Silo && addon->isIdle())
+					if (addon->getType() == BWAPI::UnitTypes::Terran_Nuclear_Silo && addon->isIdle() &&
+						BWAPI::UnitTypes::Terran_Nuclear_Missile.supplyRequired() <= supplyLeft)
 					{
 						addon->train(BWAPI::UnitTypes::Terran_Nuclear_Missile);
 						mineralsLeft = mineralsLeft - unit.mineralPrice();
 						gasLeft = gasLeft - unit.gasPrice();
+						supplyLeft -= BWAPI::UnitTypes::Terran_Nuclear_Missile.supplyRequired();
 
 						for (std::list<BWAPI::UnitType>::iterator queued = _infoManager.getQueue().begin(); queued != _infoManager.getQueue().end(); queued++)
 						{
@@ -203,14 +214,15 @@ void CreationManager::update(InformationManager & _infoManager)
 				}
 			}
 
-			if (unit == BWAPI::UnitTypes::Terran_Nuclear_Silo && !_infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Nuclear_Silo))
+			if (unit == BWAPI::UnitTypes::Terran_Nuclear_Missile && !_infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Nuclear_Silo))
 			{
 				std::list<BWAPI::UnitType>& queue = _infoManager.getQueue();
 				for (std::list<BWAPI::UnitType>::iterator it = queue.begin(); it != queue.end(); it++)
 				{
 					if (*it == unit)
 					{
-						_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() - BWAPI::UnitTypes::Terran_Missile_Turret.mineralPrice());
+						_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() - BWAPI::UnitTypes::Terran_Nuclear_Missile.mineralPrice());
+						_infoManager.setReservedGas(_infoManager.getReservedGas() - BWAPI::UnitTypes::Terran_Nuclear_Missile.gasPrice());
 						queue.erase(it);
 
 						for (std::map<BWAPI::UnitType, int>::iterator constructionQueue = _constructionQueue.begin(); constructionQueue != _constructionQueue.end(); ++constructionQueue)
@@ -285,7 +297,7 @@ void CreationManager::update(InformationManager & _infoManager)
 
 	for (auto & rax : _infoManager.getBarracks())
 	{
-		if (_infoManager.isBio(_infoManager.getStrategy()) || _infoManager.isAllIn(_infoManager.getStrategy()))
+		if (_infoManager.isBio(_infoManager.getStrategy()) || (_infoManager.isAllIn(_infoManager.getStrategy()) && _infoManager.getStrategy() != "MechAllIn"))
 		{
 			if (rax->exists() && rax->isIdle())
 			{
@@ -299,25 +311,32 @@ void CreationManager::update(InformationManager & _infoManager)
 					_infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Covert_Ops) && 
 					numGhosts < 4 && _infoManager.getMarines().size() > 24 &&
 					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Ghost.mineralPrice() &&
-					gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Ghost.gasPrice())
+					gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Ghost.gasPrice() &&
+					BWAPI::UnitTypes::Terran_Ghost.supplyRequired() <= supplyLeft)
 				{
 					rax->train(BWAPI::UnitTypes::Terran_Ghost);
 					mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Ghost.mineralPrice();
 					gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Ghost.gasPrice();
 					numGhosts += 1;
+					supplyLeft -= BWAPI::UnitTypes::Terran_Ghost.supplyRequired();
 				}
 				else if (numMedicsWanted > _infoManager.getMedics().size() && _infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Academy) > 0 &&
 					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Medic.mineralPrice() &&
-					gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Medic.gasPrice())
+					gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Medic.gasPrice() &&
+					BWAPI::UnitTypes::Terran_Medic.supplyRequired() <= supplyLeft)
 				{
 					rax->train(BWAPI::UnitTypes::Terran_Medic);
 					mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Medic.mineralPrice();
 					gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Medic.gasPrice();
+					numMedicsWanted -= 1;
+					supplyLeft -= BWAPI::UnitTypes::Terran_Medic.supplyRequired();
 				}
-				else if (mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Marine.mineralPrice())
+				else if (mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Marine.mineralPrice() &&
+					BWAPI::UnitTypes::Terran_Marine.supplyRequired() <= supplyLeft)
 				{
 					rax->train(BWAPI::UnitTypes::Terran_Marine);
 					mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Marine.mineralPrice();
+					supplyLeft -= BWAPI::UnitTypes::Terran_Marine.supplyRequired();
 				}
 			}
 		}
@@ -327,10 +346,12 @@ void CreationManager::update(InformationManager & _infoManager)
 			{
 				if (rax->isIdle() && _infoManager.getMarines().size() + BWAPI::Broodwar->self()->deadUnitCount(BWAPI::UnitTypes::Terran_Marine) < 4)
 				{
-					if (mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Marine.mineralPrice())
+					if (mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Marine.mineralPrice() &&
+						BWAPI::UnitTypes::Terran_Marine.supplyRequired() <= supplyLeft)
 					{
 						rax->train(BWAPI::UnitTypes::Terran_Marine);
 						mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Marine.mineralPrice();
+						supplyLeft -= BWAPI::UnitTypes::Terran_Marine.supplyRequired();
 					}
 				}
 				else if (!rax->isLifted() && rax->isIdle())
@@ -344,7 +365,7 @@ void CreationManager::update(InformationManager & _infoManager)
 	// Roughly, we want the number of machines shops to equal our refineries
 	int numMachineShops = _infoManager.getMachineShops().size();
 	int numShopsWanted = 0;
-	if (_infoManager.isAirStrat(_infoManager.getStrategy()))
+	if (_infoManager.isAirStrat(_infoManager.getStrategy()) || _infoManager.getStrategy() == "MechAllIn")
 	{
 		numShopsWanted = 1;
 	}
@@ -380,20 +401,26 @@ void CreationManager::update(InformationManager & _infoManager)
 				factory->buildAddon(BWAPI::UnitTypes::Terran_Machine_Shop);
 				mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Machine_Shop.mineralPrice();
 				gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Machine_Shop.gasPrice();
+				numShopsWanted -= 1;
 			}
 			else if (!factory->canBuildAddon() && factory->isIdle() &&
 				mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.mineralPrice() &&
-				gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.gasPrice())
+				gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.gasPrice() &&
+				_infoManager.getStrategy() != "MechAllIn" &&
+				BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.supplyRequired() <= supplyLeft)
 			{
 				factory->train(BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode);
 				mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.mineralPrice();
 				gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.gasPrice();
+				supplyLeft -= BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.supplyRequired();
 			}
-			else if (factory->isIdle() && factory->canBuildAddon() &&
-				mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Vulture.mineralPrice())
+			else if (factory->isIdle() && (factory->canBuildAddon() || _infoManager.getStrategy() == "MechAllIn") &&
+				mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Vulture.mineralPrice() &&
+				BWAPI::UnitTypes::Terran_Vulture.supplyRequired() <= supplyLeft)
 			{
 				factory->train(BWAPI::UnitTypes::Terran_Vulture);
 				mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Vulture.mineralPrice();
+				supplyLeft -= BWAPI::UnitTypes::Terran_Vulture.supplyRequired();
 			}
 		}
 		else if (factory->isCompleted() && _infoManager.isMech(_infoManager.getStrategy()) && factory->isIdle())
@@ -405,29 +432,36 @@ void CreationManager::update(InformationManager & _infoManager)
 				factory->buildAddon(BWAPI::UnitTypes::Terran_Machine_Shop);
 				mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Machine_Shop.mineralPrice();
 				gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Machine_Shop.gasPrice();
+				numShopsWanted -= 1;
 			}
 			else if (_infoManager.armoryDone() && factory->isIdle() && _infoManager.enemyHasAir() &&
 				_infoManager.getVultures().size() + _infoManager.getGoliaths().size() < _infoManager.getTanks().size() * 2 &&
 				mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Goliath.mineralPrice() &&
-				gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Goliath.gasPrice())
+				gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Goliath.gasPrice() &&
+				BWAPI::UnitTypes::Terran_Goliath.supplyRequired() <= supplyLeft)
 			{
 				factory->train(BWAPI::UnitTypes::Terran_Goliath);
 				mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Goliath.mineralPrice();
 				gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Goliath.gasPrice();
+				supplyLeft -= BWAPI::UnitTypes::Terran_Goliath.supplyRequired();
 			}
 			else if (factory->isIdle() && _infoManager.getVultures().size() + _infoManager.getGoliaths().size() < _infoManager.getTanks().size() * 2 &&
-				mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Vulture.mineralPrice())
+				mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Vulture.mineralPrice() &&
+				BWAPI::UnitTypes::Terran_Vulture.supplyRequired() <= supplyLeft)
 			{
 				factory->train(BWAPI::UnitTypes::Terran_Vulture);
 				mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Vulture.mineralPrice();
+				supplyLeft -= BWAPI::UnitTypes::Terran_Vulture.supplyRequired();
 			}
 			else if (!factory->canBuildAddon() && factory->isIdle() &&
 				mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.mineralPrice() &&
-				gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.gasPrice())
+				gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.gasPrice() &&
+				BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.supplyRequired() <= supplyLeft)
 			{
 				factory->train(BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode);
 				mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.mineralPrice();
 				gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.gasPrice();
+				supplyLeft -= BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.supplyRequired();
 			}
 		}
 		else if (factory->isLifted())
@@ -452,38 +486,48 @@ void CreationManager::update(InformationManager & _infoManager)
 				if (_infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Science_Facility) && _infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Physics_Lab) &&
 					_infoManager.getStrategy() == "BCMeme" &&
 					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Battlecruiser.mineralPrice() &&
-					gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Battlecruiser.gasPrice())
+					gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Battlecruiser.gasPrice() &&
+					BWAPI::UnitTypes::Terran_Battlecruiser.supplyRequired() <= supplyLeft)
 				{
 					starport->train(BWAPI::UnitTypes::Terran_Battlecruiser);
 					mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Battlecruiser.mineralPrice();
 					gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Battlecruiser.gasPrice();
+					supplyLeft -= BWAPI::UnitTypes::Terran_Battlecruiser.supplyRequired();
 				}
 				if (_infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Dropship) < 1 && 
-					((_infoManager.getIslandBases().size() || _infoManager.getOwnedIslandBases().size()) /*|| _infoManager.getStrategy() == "Nuke"*/) &&
+					(_infoManager.getIslandBases().size() || _infoManager.getOwnedIslandBases().size() || 
+					BWAPI::Broodwar->self()->deadUnitCount(BWAPI::UnitTypes::Terran_Dropship) <= 4) &&
 					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Dropship.mineralPrice() &&
-					gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Dropship.gasPrice())
+					gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Dropship.gasPrice() &&
+					BWAPI::UnitTypes::Terran_Dropship.supplyRequired() <= supplyLeft)
 				{
 					starport->train(BWAPI::UnitTypes::Terran_Dropship);
 					mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Dropship.mineralPrice();
 					gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Dropship.gasPrice();
+					supplyLeft -= BWAPI::UnitTypes::Terran_Dropship.supplyRequired();
 				}
 				else if (_infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Science_Facility)  && 
 					(_infoManager.getStrategy() == "SKTerran" || (_infoManager.getStrategy() == "Nuke" && _infoManager.getEnemyRace() == BWAPI::Races::Zerg)) &&
+					_infoManager.getVessels().size() < 14 &&
 					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Science_Vessel.mineralPrice() &&
-					gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Science_Vessel.gasPrice())
+					gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Science_Vessel.gasPrice() &&
+					BWAPI::UnitTypes::Terran_Science_Vessel.supplyRequired() <= supplyLeft)
 				{
 					starport->train(BWAPI::UnitTypes::Terran_Science_Vessel);
 					mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Science_Vessel.mineralPrice();
 					gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Science_Vessel.gasPrice();
+					supplyLeft -= BWAPI::UnitTypes::Terran_Science_Vessel.supplyRequired();
 				}
 				else if (_infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Science_Facility) && 
 					_infoManager.getVessels().size() < 2  && (_infoManager.getStrategy() != "BCMeme" || _infoManager.getBCs().size() > 4) &&
 					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Science_Vessel.mineralPrice() &&
-					gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Science_Vessel.gasPrice())
+					gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Science_Vessel.gasPrice() &&
+					BWAPI::UnitTypes::Terran_Science_Vessel.supplyRequired() <= supplyLeft)
 				{
 					starport->train(BWAPI::UnitTypes::Terran_Science_Vessel);
 					mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Science_Vessel.mineralPrice();
 					gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Science_Vessel.gasPrice();
+					supplyLeft -= BWAPI::UnitTypes::Terran_Science_Vessel.supplyRequired();
 				}
 			}
 		}
@@ -664,34 +708,59 @@ void CreationManager::update(InformationManager & _infoManager)
 	{
 		if (machineShop->exists() && machineShop->isIdle())
 		{
-			if (!_self->hasResearched(BWAPI::TechTypes::Tank_Siege_Mode) && !_self->isResearching(BWAPI::TechTypes::Tank_Siege_Mode) &&
-				mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::TechTypes::Tank_Siege_Mode.mineralPrice() &&
-				gasLeft - _infoManager.getReservedGas() >= BWAPI::TechTypes::Tank_Siege_Mode.gasPrice())
+			if (_infoManager.getStrategy() == "MechAllIn")
 			{
-				machineShop->research(BWAPI::TechTypes::Tank_Siege_Mode);
-				mineralsLeft = mineralsLeft - BWAPI::TechTypes::Tank_Siege_Mode.mineralPrice();
-				gasLeft = gasLeft - BWAPI::TechTypes::Tank_Siege_Mode.gasPrice();
-				break;
+				if (!_self->hasResearched(BWAPI::TechTypes::Spider_Mines) && !_self->isResearching(BWAPI::TechTypes::Spider_Mines) &&
+					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::TechTypes::Spider_Mines.mineralPrice() &&
+					gasLeft - _infoManager.getReservedGas() >= BWAPI::TechTypes::Spider_Mines.gasPrice())
+				{
+					machineShop->research(BWAPI::TechTypes::Spider_Mines);
+					mineralsLeft = mineralsLeft - BWAPI::TechTypes::Spider_Mines.mineralPrice();
+					gasLeft = gasLeft - BWAPI::TechTypes::Spider_Mines.gasPrice();
+					break;
+				}
+				else if (_self->hasResearched(BWAPI::TechTypes::Spider_Mines) && 
+					!_self->getUpgradeLevel(BWAPI::UpgradeTypes::Ion_Thrusters) && !_self->isUpgrading(BWAPI::UpgradeTypes::Ion_Thrusters) &&
+					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UpgradeTypes::Ion_Thrusters &&
+					gasLeft - _infoManager.getReservedGas() >= BWAPI::UpgradeTypes::Ion_Thrusters)
+				{
+					machineShop->upgrade(BWAPI::UpgradeTypes::Ion_Thrusters);
+					mineralsLeft = mineralsLeft - BWAPI::TechTypes::Spider_Mines.mineralPrice();
+					gasLeft = gasLeft - BWAPI::TechTypes::Spider_Mines.gasPrice();
+					break;
+				}
 			}
-			else if (_self->hasResearched(BWAPI::TechTypes::Tank_Siege_Mode) && _infoManager.getBarracks().size() < 2 &&
-				!_self->hasResearched(BWAPI::TechTypes::Spider_Mines) && !_self->isResearching(BWAPI::TechTypes::Spider_Mines) &&
-				mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::TechTypes::Spider_Mines.mineralPrice() &&
-				gasLeft - _infoManager.getReservedGas() >= BWAPI::TechTypes::Spider_Mines.gasPrice())
+			else
 			{
-				machineShop->research(BWAPI::TechTypes::Spider_Mines);
-				mineralsLeft = mineralsLeft - BWAPI::TechTypes::Spider_Mines.mineralPrice();
-				gasLeft = gasLeft - BWAPI::TechTypes::Spider_Mines.gasPrice();
-				break;
-			}
-			else if (_infoManager.getGoliaths().size() > 3 &&
-				!_self->getUpgradeLevel(BWAPI::UpgradeTypes::Charon_Boosters) && !_self->isUpgrading(BWAPI::UpgradeTypes::Charon_Boosters) &&
-				mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UpgradeTypes::Charon_Boosters.mineralPrice() &&
-				gasLeft - _infoManager.getReservedGas() >= BWAPI::UpgradeTypes::Charon_Boosters.gasPrice())
-			{
-				machineShop->upgrade(BWAPI::UpgradeTypes::Charon_Boosters);
-				mineralsLeft = mineralsLeft - BWAPI::UpgradeTypes::Charon_Boosters.mineralPrice();
-				gasLeft = gasLeft - BWAPI::UpgradeTypes::Charon_Boosters.gasPrice();
-				break;
+				if (!_self->hasResearched(BWAPI::TechTypes::Tank_Siege_Mode) && !_self->isResearching(BWAPI::TechTypes::Tank_Siege_Mode) &&
+					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::TechTypes::Tank_Siege_Mode.mineralPrice() &&
+					gasLeft - _infoManager.getReservedGas() >= BWAPI::TechTypes::Tank_Siege_Mode.gasPrice())
+				{
+					machineShop->research(BWAPI::TechTypes::Tank_Siege_Mode);
+					mineralsLeft = mineralsLeft - BWAPI::TechTypes::Tank_Siege_Mode.mineralPrice();
+					gasLeft = gasLeft - BWAPI::TechTypes::Tank_Siege_Mode.gasPrice();
+					break;
+				}
+				else if (_self->hasResearched(BWAPI::TechTypes::Tank_Siege_Mode) && _infoManager.getBarracks().size() < 2 &&
+					!_self->hasResearched(BWAPI::TechTypes::Spider_Mines) && !_self->isResearching(BWAPI::TechTypes::Spider_Mines) &&
+					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::TechTypes::Spider_Mines.mineralPrice() &&
+					gasLeft - _infoManager.getReservedGas() >= BWAPI::TechTypes::Spider_Mines.gasPrice())
+				{
+					machineShop->research(BWAPI::TechTypes::Spider_Mines);
+					mineralsLeft = mineralsLeft - BWAPI::TechTypes::Spider_Mines.mineralPrice();
+					gasLeft = gasLeft - BWAPI::TechTypes::Spider_Mines.gasPrice();
+					break;
+				}
+				else if (_infoManager.getGoliaths().size() > 3 &&
+					!_self->getUpgradeLevel(BWAPI::UpgradeTypes::Charon_Boosters) && !_self->isUpgrading(BWAPI::UpgradeTypes::Charon_Boosters) &&
+					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UpgradeTypes::Charon_Boosters.mineralPrice() &&
+					gasLeft - _infoManager.getReservedGas() >= BWAPI::UpgradeTypes::Charon_Boosters.gasPrice())
+				{
+					machineShop->upgrade(BWAPI::UpgradeTypes::Charon_Boosters);
+					mineralsLeft = mineralsLeft - BWAPI::UpgradeTypes::Charon_Boosters.mineralPrice();
+					gasLeft = gasLeft - BWAPI::UpgradeTypes::Charon_Boosters.gasPrice();
+					break;
+				}
 			}
 		}
 	}
@@ -762,13 +831,33 @@ void CreationManager::update(InformationManager & _infoManager)
 	}
 
 	// Supply depot construction is called here, seperate from normal construction
-	int producerSize = _infoManager.getBarracks().size() + _infoManager.getFactories().size() + _infoManager.getStarports().size() + _infoManager.getCommandCenters().size();
+	/*if (_infoManager.isTwoBasePlay(_infoManager.getStrategy()) && _infoManager.getOwnedBases().size() < 2 &&
+		_infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) == 1)
+		return;*/
+
+	int producerSize = _infoManager.getBarracks().size() + (_infoManager.getFactories().size() * 2) + _infoManager.getStarports().size() + _infoManager.getCommandCenters().size();
 
 	if (WorkerManager::Instance().checkSupplyConstruction(producerSize, _infoManager.getReservedMinerals()))
 	{
 		BWAPI::TilePosition targetSupplyLocation = _buildingPlacer.getSupplyLocation(BWAPI::UnitTypes::Terran_Supply_Depot, _infoManager);
 
+		_infoManager.getQueue().push_back(BWAPI::UnitTypes::Terran_Supply_Depot);
+
+		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());
+
 		WorkerManager::Instance().supplyConstruction(_infoManager.getWorkers(), targetSupplyLocation, _infoManager.getReservedMinerals(), _infoManager.getOwnedBases());
+	}
+	else if (WorkerManager::Instance().getLastCheckSupply() + 300 < Broodwar->getFrameCount())
+	{
+		for (std::list<BWAPI::UnitType>::iterator queued = _infoManager.getQueue().begin(); queued != _infoManager.getQueue().end(); queued++)
+		{
+			if (*queued == BWAPI::UnitTypes::Terran_Supply_Depot)
+			{
+				_infoManager.getQueue().erase(queued);
+				_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() - BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());
+				break;
+			}
+		}
 	}
 }
 

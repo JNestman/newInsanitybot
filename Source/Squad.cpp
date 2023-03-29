@@ -10,6 +10,7 @@ insanitybot::Squad::Squad(BWAPI::Unit unit, bool isAllIn)
 {
 	goodToAttack = false;
 	haveGathered = false;
+	isAllInSquad = isAllIn;
 	if (isAllIn)
 		maxSupply = 300;
 	else
@@ -60,6 +61,8 @@ insanitybot::Squad::Squad(BWAPI::Unit unit, bool isAllIn)
 
 	mineOffset = 50;
 	tankMineOffset = 75;
+
+	dropTarget = BWAPI::Position(0, 0);
 }
 
 BWAPI::Position insanitybot::Squad::getSquadPosition()
@@ -140,7 +143,7 @@ void insanitybot::Squad::attack(BWAPI::Position attackPoint, BWAPI::Position for
 	* Bio
 	*****************************************************************************************/
 	handleMarines(attackPoint, forwardGather, haveGathered, injured, _activePsiStorms, _activeScarabs, enemyUnits, NULL, BWAPI::Position(0,0));
-	handleMedics(_flareBD, injured, BWAPI::Position(0, 0));
+	handleMedics(_flareBD, injured, _activePsiStorms, _activeScarabs, BWAPI::Position(0, 0));
 
 	/****************************************************************************************
 	* Mech
@@ -293,7 +296,8 @@ void insanitybot::Squad::attack(BWAPI::Position attackPoint, BWAPI::Position for
 			{
 				if (vulture->first->getDistance(closestTankToTarget) < 64 || isMaxSupply())
 				{
-					vulture->first->attack(attackPoint);
+					if (!closeEnough(vulture->first->getPosition(), attackPoint))
+							vulture->first->attack(attackPoint);
 				}
 				else if (vulture->first->getDistance(closestTankToTarget) > 128)
 				{
@@ -302,7 +306,8 @@ void insanitybot::Squad::attack(BWAPI::Position attackPoint, BWAPI::Position for
 			}
 			else
 			{
-				if (!vulture->first->isAttacking() && !vulture->first->isMoving() && !vulture->first->isUnderAttack())
+				if ((!vulture->first->isAttacking() && !vulture->first->isMoving() && !vulture->first->isUnderAttack())
+					|| isAllInSquad)
 				{
 					if (haveGathered)
 					{
@@ -312,9 +317,7 @@ void insanitybot::Squad::attack(BWAPI::Position attackPoint, BWAPI::Position for
 					else
 					{
 						if (!closeEnough(vulture->first->getPosition(), forwardGather))
-						{
 							vulture->first->attack(forwardGather);
-						}
 					}
 				}
 			}
@@ -335,7 +338,8 @@ void insanitybot::Squad::attack(BWAPI::Position attackPoint, BWAPI::Position for
 			{
 				if ((*goliath)->getDistance(closestTankToTarget) < 64 || isMaxSupply())
 				{
-					(*goliath)->attack(attackPoint);
+					if (!closeEnough((*goliath)->getPosition(), attackPoint))
+						(*goliath)->attack(attackPoint);
 				}
 				else if ((*goliath)->getDistance(closestTankToTarget) > 128)
 				{
@@ -354,9 +358,7 @@ void insanitybot::Squad::attack(BWAPI::Position attackPoint, BWAPI::Position for
 					else
 					{
 						if (!closeEnough((*goliath)->getPosition(), forwardGather))
-						{
 							(*goliath)->attack(forwardGather);
-						}
 					}
 				}
 			}
@@ -452,7 +454,7 @@ void insanitybot::Squad::attack(BWAPI::Unit target, std::map<BWAPI::Unit, std::p
 	* Bio
 	*****************************************************************************************/
 	handleMarines(BWAPI::Position(0, 0), BWAPI::Position(0, 0), haveGathered, injured, _activePsiStorms, _activeScarabs, enemyUnits, target, BWAPI::Position(0,0));
-	handleMedics(_flareBD, injured, BWAPI::Position(0,0));
+	handleMedics(_flareBD, injured, _activePsiStorms, _activeScarabs, BWAPI::Position(0,0));
 
 	/****************************************************************************************
 	* Mech
@@ -576,7 +578,7 @@ void insanitybot::Squad::gather(BWAPI::Position gatherPoint, std::map<BWAPI::Uni
 	* Bio
 	*****************************************************************************************/
 	handleMarines(BWAPI::Position(0, 0), BWAPI::Position(0, 0), haveGathered, injured, _activePsiStorms, _activeScarabs, enemyUnits, NULL, gatherPoint);
-	handleMedics(_flareBD, injured, gatherPoint);
+	handleMedics(_flareBD, injured, _activePsiStorms, _activeScarabs, gatherPoint);
 
 	/****************************************************************************************
 	* Mech
@@ -912,6 +914,332 @@ void insanitybot::Squad::protect()
 }
 
 /***************************************************************
+* Small squad that drops into enemy mineral lines for massive/
+* no damage.
+****************************************************************/
+void insanitybot::Squad::loadDrop(BWAPI::Unit dropship)
+{
+	if (!dropship || !dropship->exists())
+		return;
+
+	if (_marines.size())
+	{
+		for (std::list <BWAPI::Unit>::iterator marine = _marines.begin(); marine != _marines.end();)
+		{
+			if (!(*marine) || !(*marine)->exists())
+			{
+				marine = _marines.erase(marine);
+			}
+
+			if (!(*marine)->isLoaded())
+				(*marine)->load(dropship);
+
+			marine++;
+		}
+	}
+
+	if (_medics.size())
+	{
+		for (std::list <BWAPI::Unit>::iterator medic = _medics.begin(); medic != _medics.end();)
+		{
+			if (!(*medic) || !(*medic)->exists())
+			{
+				medic = _medics.erase(medic);
+			}
+
+			if (!(*medic)->isLoaded())
+				(*medic)->load(dropship);
+
+			medic++;
+		}
+	}
+
+	if (_vultures.size())
+	{
+		for (std::map<BWAPI::Unit, int>::iterator vulture = _vultures.begin(); vulture != _vultures.end();)
+		{
+			if (!vulture->first || !vulture->first->exists())
+			{
+				vulture = _vultures.erase(vulture);
+			}
+
+			if (!vulture->first->isLoaded())
+				vulture->first->load(dropship);
+
+			vulture++;
+		}
+	}
+
+	if (_goliaths.size())
+	{
+		for (std::list <BWAPI::Unit>::iterator goliath = _goliaths.begin(); goliath != _goliaths.end();)
+		{
+			if (!(*goliath) || !(*goliath)->exists())
+			{
+				goliath = _goliaths.erase(goliath);
+			}
+
+			if (!(*goliath)->isLoaded())
+				(*goliath)->load(dropship);
+
+			goliath++;
+		}
+	}
+
+	if (_tanks.size())
+	{
+		for (std::map<BWAPI::Unit, int>::iterator tank = _tanks.begin(); tank != _tanks.end();)
+		{
+			if (!tank->first || !tank->first->exists())
+			{
+				tank = _tanks.erase(tank);
+			}
+
+			if (!tank->first->isLoaded())
+				tank->first->load(dropship);
+
+			tank++;
+		}
+	}
+}
+
+void insanitybot::Squad::drop(BWAPI::Unitset enemyUnits)
+{
+	std::list<BWAPI::Unit> injured;
+	injured.clear();
+	int spread = 0;
+
+	/****************************************************************************************
+	* Bio
+	*****************************************************************************************/
+	for (std::list <BWAPI::Unit>::iterator marine = _marines.begin(); marine != _marines.end();)
+	{
+		if (!(*marine) || !(*marine)->exists())
+		{
+			marine = _marines.erase(marine);
+		}
+		else
+		{
+			if ((*marine)->isLoaded())
+			{
+				marine++;
+				continue;
+			}
+			else
+			{
+				int closestEnemy = 9999999;
+				BWAPI::Position enemyGuy = BWAPI::Position(0, 0);
+				for (auto enemy : enemyUnits)
+				{
+					if (!enemy || !enemy->exists())
+						continue;
+
+					if (enemy->exists() && (*marine)->getDistance(enemy) < closestEnemy)
+					{
+						closestEnemy = (*marine)->getDistance(enemy);
+						enemyGuy = enemy->getPosition();
+					}
+				}
+				
+				if ((!(*marine)->isAttacking() && !(*marine)->isMoving() && !(*marine)->isUnderAttack()) ||
+					(closestEnemy > BWAPI::UnitTypes::Terran_Marine.groundWeapon().maxRange() + 8))
+				{
+					if (!closeEnough((*marine)->getPosition(), dropTarget))
+							(*marine)->attack(dropTarget);
+				}
+			}
+
+			if (BWAPI::Broodwar->self()->hasResearched(BWAPI::TechTypes::Stim_Packs))
+			{
+				if ((*marine)->isAttacking() && !(*marine)->isStimmed() &&
+					((*marine)->getHitPoints() == (*marine)->getType().maxHitPoints()) &&
+					(*marine)->getLastCommand().getType() != BWAPI::UnitCommandTypes::Use_Tech)
+				{
+					(*marine)->useTech(BWAPI::TechTypes::Stim_Packs);
+				}
+			}
+
+			if ((*marine)->isCompleted() && (*marine)->getHitPoints() < (*marine)->getType().maxHitPoints())
+			{
+				injured.push_back((*marine));
+			}
+
+			marine++;
+		}
+	}
+
+	for (std::list <BWAPI::Unit>::iterator medic = _medics.begin(); medic != _medics.end();)
+	{
+		if (!(*medic) || !(*medic)->exists())
+		{
+			medic = _medics.erase(medic);
+		}
+		else
+		{
+			if ((*medic)->isLoaded())
+			{
+				medic++;
+				continue;
+			}
+
+			if (injured.size())
+			{
+				BWAPI::Unit closestInjured = injured.front();
+
+				for (auto injuredSquadmate : injured)
+				{
+					if (!injuredSquadmate->isBeingHealed() && (*medic)->getDistance(injuredSquadmate) < (*medic)->getDistance(closestInjured))
+					{
+						closestInjured = injuredSquadmate;
+					}
+				}
+
+				if (!closeEnough(closestInjured->getPosition(), (*medic)->getPosition()))
+					(*medic)->attack(closestInjured);
+			}
+			else
+			{
+				if (_marines.size() > 1)
+				{
+					std::list<BWAPI::Unit>::iterator buddy = _marines.begin();
+					if (spread < _marines.size())
+					{
+						for (int x = 0; x < spread; x++)
+						{
+							buddy++;
+						}
+					}
+
+					spread++;
+					(*medic)->attack((*buddy)->getPosition());
+				}
+				else if (_marines.size())
+				{
+					(*medic)->attack(_marines.front()->getPosition());
+				}
+			}
+
+			medic++;
+		}
+	}
+
+	/****************************************************************************************
+	* Mech
+	*****************************************************************************************/
+	for (std::map<BWAPI::Unit, int>::iterator tank = _tanks.begin(); tank != _tanks.end();)
+	{
+		if (!tank->first || !tank->first->exists())
+		{
+			tank = _tanks.erase(tank);
+		}
+		else
+		{
+			if (tank->first->isLoaded())
+			{
+				tank++;
+				continue;
+			}
+
+			if (BWAPI::Broodwar->self()->hasResearched(BWAPI::TechTypes::Tank_Siege_Mode))
+			{
+				if (closeEnough(BWAPI::Position(dropTarget), tank->first->getPosition()) && !tank->first->isMoving() && !tank->first->isSieged())
+				{
+					if (!tank->first->isSieged())
+						tank->first->siege();
+					tank->second = BWAPI::Broodwar->getFrameCount();
+				}
+				else if (!closeEnough(BWAPI::Position(dropTarget), tank->first->getPosition()))
+				{
+					int targetDistance = 999999;
+					BWAPI::Unit closestTargetForTank;
+					for (auto enemy : BWAPI::Broodwar->enemy()->getUnits())
+					{
+						if (!enemy || !enemy->exists())
+							continue;
+
+						if (tank->first->getDistance(enemy) < targetDistance && !enemy->isFlying())
+						{
+							targetDistance = tank->first->getDistance(enemy);
+							closestTargetForTank = enemy;
+						}
+					}
+
+					if (targetDistance <= BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode.groundWeapon().maxRange() - 8)
+					{
+						if (!tank->first->isSieged())
+							tank->first->siege();
+
+						tank->second = BWAPI::Broodwar->getFrameCount();
+					}
+
+					if (tank->first->isSieged() && BWAPI::Broodwar->getFrameCount() - tank->second > 400)
+					{
+						tank->first->unsiege();
+					}
+					else if (!tank->first->isSieged())
+					{
+						tank->first->attack(BWAPI::Position(dropTarget));
+					}
+				}
+			}
+			else
+			{
+				if (!closeEnough(BWAPI::Position(dropTarget), tank->first->getPosition()))
+					tank->first->attack(BWAPI::Position(dropTarget));
+			}
+
+			tank++;
+		}
+	}
+
+	for (std::map<BWAPI::Unit, int>::iterator vulture = _vultures.begin(); vulture != _vultures.end();)
+	{
+		if (!vulture->first || !vulture->first->exists())
+		{
+			vulture = _vultures.erase(vulture);
+		}
+		else
+		{
+			if (vulture->first->isLoaded())
+			{
+				vulture++;
+				continue;
+			}
+
+			if (!closeEnough(BWAPI::Position(dropTarget), vulture->first->getPosition()))
+			{
+				vulture->first->attack(BWAPI::Position(dropTarget));
+			}
+
+			vulture++;
+		}
+	}
+
+	for (std::list<BWAPI::Unit>::iterator goliath = _goliaths.begin(); goliath != _goliaths.end();)
+	{
+		if (!(*goliath) || !(*goliath)->exists())
+		{
+			goliath = _goliaths.erase(goliath);
+		}
+		else
+		{
+			if ((*goliath)->isLoaded())
+			{
+				goliath++;
+				continue;
+			}
+
+			if (!closeEnough(BWAPI::Position(dropTarget), (*goliath)->getPosition()))
+			{
+				(*goliath)->attack(BWAPI::Position(dropTarget));
+			}
+
+			goliath++;
+		}
+	}
+}
+
+/***************************************************************
 * Unit specific orders will be handled here
 ****************************************************************/
 // Order the Marines around
@@ -926,6 +1254,8 @@ void insanitybot::Squad::handleMarines(BWAPI::Position attackPoint, BWAPI::Posit
 		}
 		else
 		{
+			bool dodging = false;
+
 			if (_activePsiStorms.size())
 			{
 				for (auto storm : _activePsiStorms)
@@ -933,7 +1263,8 @@ void insanitybot::Squad::handleMarines(BWAPI::Position attackPoint, BWAPI::Posit
 					if ((*marine)->getDistance(storm->getPosition()) < 100)
 					{
 						(*marine)->move(stormDodge((*marine)->getPosition(), storm->getPosition()));
-						continue;
+						dodging = true;
+						break;
 					}
 				}
 			}
@@ -948,17 +1279,20 @@ void insanitybot::Squad::handleMarines(BWAPI::Position attackPoint, BWAPI::Posit
 							(*marine)->useTech(BWAPI::TechTypes::Stim_Packs);
 						else
 							(*marine)->move(scarab->getPosition());
-						continue;
+
+						dodging = true;
+						break;
 					}
 					else if ((*marine)->getDistance(scarab->getOrderTargetPosition()) < 70)
 					{
 						(*marine)->move(scarabDodge((*marine)->getPosition(), scarab->getOrderTargetPosition()));
-						continue;
+						dodging = true;
+						break;
 					}
 				}
 			}
 
-			if ((*marine)->getLastCommandFrame() == BWAPI::Broodwar->getFrameCount())
+			if (dodging)
 			{
 				marine++;
 				continue;
@@ -1081,9 +1415,11 @@ void insanitybot::Squad::handleMarines(BWAPI::Position attackPoint, BWAPI::Posit
 }
 
 // Order the Medics around
-void insanitybot::Squad::handleMedics(std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>>& _flareBD, std::list<BWAPI::Unit> injured, BWAPI::Position gatherPoint)
+void insanitybot::Squad::handleMedics(std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>>& _flareBD, std::list<BWAPI::Unit> injured, 
+										std::list<BWAPI::Bullet> _activePsiStorms, std::list<BWAPI::Unit> _activeScarabs, BWAPI::Position gatherPoint)
 {
 	int spread = 0;
+
 	for (std::list <BWAPI::Unit>::iterator medic = _medics.begin(); medic != _medics.end();)
 	{
 		if (!(*medic) || !(*medic)->exists())
@@ -1092,6 +1428,45 @@ void insanitybot::Squad::handleMedics(std::map<BWAPI::Unit, std::pair<BWAPI::Uni
 		}
 		else
 		{
+			bool dodging = false;
+			if (_activePsiStorms.size())
+			{
+				for (auto storm : _activePsiStorms)
+				{
+					if ((*medic)->getDistance(storm->getPosition()) < 100)
+					{
+						(*medic)->move(stormDodge((*medic)->getPosition(), storm->getPosition()));
+						dodging = true;
+						break;
+					}
+				}
+			}
+
+			if (_activeScarabs.size())
+			{
+				for (auto scarab : _activeScarabs)
+				{
+					if (scarab->getOrderTarget() == (*medic))
+					{
+						(*medic)->move(scarab->getPosition());
+						dodging = true;
+						break;
+					}
+					else if ((*medic)->getDistance(scarab->getOrderTargetPosition()) < 70)
+					{
+						(*medic)->move(scarabDodge((*medic)->getPosition(), scarab->getOrderTargetPosition()));
+						dodging = true;
+						break;
+					}
+				}
+			}
+
+			if (dodging)
+			{
+				medic++;
+				continue;
+			}
+
 			if (flareTarget((*medic), _flareBD))
 			{
 
@@ -1108,8 +1483,8 @@ void insanitybot::Squad::handleMedics(std::map<BWAPI::Unit, std::pair<BWAPI::Uni
 					}
 				}
 
-				
-				(*medic)->attack(closestInjured);
+				if (!closeEnough(closestInjured->getPosition(), (*medic)->getPosition()))
+					(*medic)->attack(closestInjured->getPosition());
 
 			}
 			else if(gatherPoint != BWAPI::Position(0,0))
@@ -1132,11 +1507,11 @@ void insanitybot::Squad::handleMedics(std::map<BWAPI::Unit, std::pair<BWAPI::Uni
 					}
 
 					spread++;
-					(*medic)->move((*buddy)->getPosition());
+					(*medic)->attack((*buddy)->getPosition());
 				}
 				else if (_marines.size())
 				{
-					(*medic)->move(_marines.front()->getPosition());
+					(*medic)->attack(_marines.front()->getPosition());
 				}
 			}
 
@@ -1341,7 +1716,7 @@ BWAPI::Position insanitybot::Squad::scarabDodge(BWAPI::Position friendly, BWAPI:
 	vector = vector / distance;
 
 	// Scale the vector by the splash radius plus a small buffer distance (e.g. 16)
-	vector = vector * (60 + 16);
+	vector = vector * (40 + 16);
 
 	// Add the scaled vector to the target position to get the new position to move to
 	BWAPI::Position dodgePosition = scarabTargetPos + vector;
@@ -1470,7 +1845,7 @@ bool insanitybot::Squad::flareTarget(BWAPI::Unit medic, std::map<BWAPI::Unit, st
 	}
 
 	BWAPI::Unit target = NULL;
-	int closestDistance = 1000;
+	int closestDistance = 800;
 
 	for (auto enemy : BWAPI::Broodwar->enemy()->getUnits())
 	{

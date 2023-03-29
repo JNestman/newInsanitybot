@@ -332,6 +332,12 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 		int length = -1;
 		for (auto base : _infoManager.getOtherBases())
 		{
+			if (!base.second)
+			{
+				BWAPI::Broodwar << "Null Base" << std::endl;
+				continue;
+			}
+
 			if (_infoManager.getOwnedBases().size() < 2 && !base.second->baseHasGeyser()) continue;
 
 			// Avoiding taking the center of the map if we can help it
@@ -356,7 +362,7 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 	//Bunkers go to choke positions
 	else if (building == BWAPI::UnitTypes::Terran_Bunker)
 	{
-		if (_infoManager.isOneBasePlay(_infoManager.getStrategy()))
+		if (_infoManager.isOneBasePlay(_infoManager.getStrategy()) && _infoManager.getStrategy() != "MechAllIn")
 		{
 			bool bunkerSpotBuildable = BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()), true) &&
 				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 0), true) &&
@@ -389,7 +395,9 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 	{
 		for (auto base : _infoManager.getOwnedBases())
 		{
-			if (base.second->baseHasGeyser())
+			if (base.second->baseHasGeyser() && 
+				(base.second->getBaseCommandCenter() && base.second->getBaseCommandCenter()->exists()) &&
+				!base.second->getBaseCommandCenter()->isBeingConstructed())
 			{
 				// ToDo: This check doesn't catch dead refineries that haven't been caught elsewhere
 				if (!base.second->baseHasRefinery() || base.second->getBaseRefinery()->getType() != BWAPI::UnitTypes::Terran_Refinery)
@@ -1094,7 +1102,10 @@ BWAPI::TilePosition insanitybot::BuildingPlacer::getPositionNear(BWAPI::UnitType
 		//Spiral out. Keep going.
 	}
 
-	return BWAPI::Broodwar->getBuildLocation(building, beginingPoint);
+	if (isMech)
+		return getPositionNear(building, beginingPoint, false);
+	else
+		return BWAPI::Broodwar->getBuildLocation(building, beginingPoint);
 	//return getPositionNear(building, beginingPoint, "Bio");
 }
 

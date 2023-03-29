@@ -27,7 +27,7 @@ namespace insanitybot
 		bool freeOnBottom(const BWAPI::TilePosition & tile, BWAPI::UnitType buildingType) const;
 		bool freeOnAllSides(BWAPI::Unit building) const;
 
-		bool	canBuildWithSpace(const BWAPI::TilePosition & position, const BWAPI::UnitType & b, int extraSpace) const;
+		bool canBuildWithSpace(const BWAPI::TilePosition & position, const BWAPI::UnitType & b, int extraSpace) const;
 
 		
 		BWAPI::TilePosition getDesiredLocation(BWAPI::UnitType building, InformationManager & _infoManager, std::list<BWAPI::TilePosition>);
