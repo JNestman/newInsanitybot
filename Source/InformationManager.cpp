@@ -948,7 +948,7 @@ void InformationManager::update()
 			_construction.push_back(myUnit);
 		}
 		else if (myUnit->getType().isBuilding() && myUnit->isCompleted() &&
-			myUnit->getHitPoints() < myUnit->getType().maxHitPoints() && !myUnit->isFlying())
+			myUnit->getHitPoints() < myUnit->getType().maxHitPoints() / 2 && !myUnit->isFlying())
 		{
 			_injuredBuildings.push_back(myUnit);
 		}

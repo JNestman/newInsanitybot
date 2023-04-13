@@ -107,49 +107,6 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	******************************************************************************/
 	bool needRepair = false;
 
-	// Repair for turrets
-	for (auto turret : _infoManager.getTurrets())
-	{
-		if (!turret || !turret->exists())
-		{
-			continue;
-		}
-
-		if (turret->isAttacking() || turret->isUnderAttack() || (turret->getHitPoints() < turret->getType().maxHitPoints() && !turret->isBeingConstructed()))
-		{
-			needRepair = true;
-			if (_repairWorkers.size() > 2)
-			{
-				for (auto & worker : _repairWorkers)
-				{
-					if (!worker || !worker->exists())
-					{
-						for (std::list<BWAPI::Unit>::iterator deadRepairer = _repairWorkers.begin(); deadRepairer != _repairWorkers.end();)
-						{
-							if ((*deadRepairer) || !(*deadRepairer)->exists())
-							{
-								deadRepairer = _repairWorkers.erase(deadRepairer);
-							}
-							else
-							{
-								deadRepairer++;
-							}
-						}
-
-						break;
-					}
-
-					if (!worker->isRepairing())
-						worker->repair(turret);
-				}
-			}
-			else
-			{
-				assignRepairWorkers(_workers, _repairWorkers, turret, _ownedBases);
-			}
-		}
-	}
-
 	// Repair for bunker
 	for (auto bunker : _infoManager.getBunkers())
 	{
@@ -186,7 +143,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 
 					if (bunker->getHitPoints() < bunker->getType().maxHitPoints())
 					{
-						if (!worker->isRepairing())
+						if (!worker->isRepairing() || worker->getTarget() != bunker)
 							worker->repair(bunker);
 					}
 					else
@@ -227,7 +184,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 
 					if (bunker->getHitPoints() < bunker->getType().maxHitPoints())
 					{
-						if (!worker->isRepairing())
+						if (!worker->isRepairing() || worker->getTarget() != bunker)
 							worker->repair(bunker);
 					}
 					else
@@ -239,6 +196,52 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			else
 			{
 				assignRepairWorkers(_workers, _repairWorkers, bunker, _ownedBases);
+			}
+		}
+	}
+
+	// Repair for turrets
+	if (!needRepair)
+	{
+		for (auto turret : _infoManager.getTurrets())
+		{
+			if (!turret || !turret->exists())
+			{
+				continue;
+			}
+
+			if (turret->isAttacking() || turret->isUnderAttack() || (turret->getHitPoints() < turret->getType().maxHitPoints() && !turret->isBeingConstructed()))
+			{
+				needRepair = true;
+				if (_repairWorkers.size() > 2)
+				{
+					for (auto & worker : _repairWorkers)
+					{
+						if (!worker || !worker->exists())
+						{
+							for (std::list<BWAPI::Unit>::iterator deadRepairer = _repairWorkers.begin(); deadRepairer != _repairWorkers.end();)
+							{
+								if ((*deadRepairer) || !(*deadRepairer)->exists())
+								{
+									deadRepairer = _repairWorkers.erase(deadRepairer);
+								}
+								else
+								{
+									deadRepairer++;
+								}
+							}
+
+							break;
+						}
+
+						if (!worker->isRepairing() || worker->getTarget() != turret)
+							worker->repair(turret);
+					}
+				}
+				else
+				{
+					assignRepairWorkers(_workers, _repairWorkers, turret, _ownedBases);
+				}
 			}
 		}
 	}
