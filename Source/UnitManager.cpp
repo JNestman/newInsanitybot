@@ -2248,8 +2248,8 @@ const BWAPI::Position & insanitybot::UnitManager::waypoint(int i)
 void insanitybot::UnitManager::calculateWaypoints()
 {
 	// Tile coordinates.
-	int minX = 0;
-	int minY = 0;
+	int minX = 1;
+	int minY = 1;
 	int maxX = BWAPI::Broodwar->mapWidth() - 1;
 	int maxY = BWAPI::Broodwar->mapHeight() - 1;
 
