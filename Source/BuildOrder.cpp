@@ -171,7 +171,8 @@ void insanitybot::BuildOrder::SKTerran(InformationManager & _infoManager)
 		}
 	}
 
-	if (hasAcademy && _infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Refinery) < _infoManager.numGeyserBases())
+	if (hasAcademy && _infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Refinery) < _infoManager.numGeyserBases() &&
+		_infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Command_Center) >= _infoManager.numGeyserBases())
 	{
 		_queue.push_back(BWAPI::UnitTypes::Terran_Refinery);
 		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Refinery.mineralPrice());
@@ -331,7 +332,8 @@ void insanitybot::BuildOrder::Nuke(InformationManager & _infoManager)
 		_infoManager.setReservedGas(_infoManager.getReservedGas() + BWAPI::UnitTypes::Terran_Nuclear_Missile.gasPrice());
 	}
 
-	if (hasAcademy && _infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Refinery) - _infoManager.getOwnedIslandBases().size() < _infoManager.numGeyserBases())
+	if (hasAcademy && _infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Refinery) - _infoManager.getOwnedIslandBases().size() < _infoManager.numGeyserBases() &&
+		_infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Command_Center) >= _infoManager.numGeyserBases())
 	{
 		_queue.push_back(BWAPI::UnitTypes::Terran_Refinery);
 		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Refinery.mineralPrice());
