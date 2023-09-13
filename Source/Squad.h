@@ -9,6 +9,7 @@ namespace insanitybot
 	class Squad
 	{
 		std::list <BWAPI::Unit> _marines;
+		std::list <BWAPI::Unit> _firebats;
 		std::list <BWAPI::Unit> _medics;
 		std::list <BWAPI::Unit> _ghosts;
 
@@ -19,6 +20,7 @@ namespace insanitybot
 		std::map <BWAPI::Unit, int> _bcs;
 
 		BWAPI::Unit nuker;
+		BWAPI::Unit dropship;
 
 		bool goodToAttack;
 		bool haveGathered;
@@ -48,12 +50,16 @@ namespace insanitybot
 		int dropSquadSize()							{ return _marines.size() + _medics.size() + (_vultures.size() * 2) + (_tanks.size() * 4) + (_goliaths.size() * 2); };
 
 		int numMarines()							{ return _marines.size(); };
+		int numFirebats()							{ return _firebats.size(); };
 		int numMedics()								{ return _medics.size(); };
 		int numGhosts()								{ return _ghosts.size(); };
 		int numVultures()							{ return _vultures.size(); };
 		int numTanks()								{ return _tanks.size(); };
 		int numGoliaths()							{ return _goliaths.size(); };
 		int numBCs()								{ return _bcs.size(); };
+
+		std::list <BWAPI::Unit>& getMarines()		{ return _marines; };
+		std::list <BWAPI::Unit>& getMedics()		{ return _medics; };
 
 		std::map <BWAPI::Unit, int> getTanks()		{ return _tanks; };
 
@@ -77,11 +83,15 @@ namespace insanitybot
 		bool isMaxSupply()							{ return selfPreservationToTheWind; };
 
 		void addMarine(BWAPI::Unit unit)			{ _marines.push_back(unit); };
+		void addFirebat(BWAPI::Unit unit)			{ _firebats.push_back(unit); };
 		void addMedic(BWAPI::Unit unit)				{ _medics.push_back(unit); };
 		void addGhost(BWAPI::Unit unit)				{ _ghosts.push_back(unit); };
 		void addVulture(BWAPI::Unit unit)			{ _vultures.insert(std::pair<BWAPI::Unit, int>(unit, 0));  };
 		void addTank(BWAPI::Unit unit)				{ _tanks.insert(std::pair<BWAPI::Unit, int>(unit, 0)); };
 		void addGoliath(BWAPI::Unit unit)			{ _goliaths.push_back(unit); };
+
+		void addDropship(BWAPI::Unit unit)			{ dropship = unit; };
+		BWAPI::Unit getDropship()					{ return dropship; };
 
 		void addBC(BWAPI::Unit unit)				{ _bcs.insert(std::pair<BWAPI::Unit, int>(unit, 0)); };
 
@@ -92,9 +102,12 @@ namespace insanitybot
 		void protect();
 		void loadDrop(BWAPI::Unit dropship);
 		void drop(BWAPI::Unitset enemyUnits);
+		void dropIdle();
 
 		// Units have very similar commands across our three main squad commands, here we'll try to thin the code a bit
 		void handleMarines(BWAPI::Position attackPoint, BWAPI::Position forwardGather, bool haveGathered, std::list<BWAPI::Unit>& injured, 
+							std::list<BWAPI::Bullet> _activePsiStorms, std::list<BWAPI::Unit> _activeScarabs, BWAPI::Unitset enemyUnits, BWAPI::Unit target, BWAPI::Position gatherPoint);
+		void handleFirebats(BWAPI::Position attackPoint, BWAPI::Position forwardGather, bool haveGathered, std::list<BWAPI::Unit>& injured,
 							std::list<BWAPI::Bullet> _activePsiStorms, std::list<BWAPI::Unit> _activeScarabs, BWAPI::Unitset enemyUnits, BWAPI::Unit target, BWAPI::Position gatherPoint);
 		void handleMedics(std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>>& _flareBD, std::list<BWAPI::Unit> injured,
 							std::list<BWAPI::Bullet> _activePsiStorms, std::list<BWAPI::Unit> _activeScarabs, BWAPI::Position gatherPoint);

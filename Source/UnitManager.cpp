@@ -256,7 +256,7 @@ void UnitManager::update(InformationManager & _infoManager)
 		}
 	}
 
-	// Check if we have/need any frontier squads to help defend out outer bases
+	// Check if we have/need any frontier squads to help defend our outer bases
 	if (_infoManager.numFrontierSquadsNeeded() - numEmptyBases > 0 &&
 		_infoManager.numFrontierSquadsNeeded() - numEmptyBases > _frontierSquads.size() && 
 		(_infantrySquads.size() || _mechSquads.size()))
@@ -272,7 +272,7 @@ void UnitManager::update(InformationManager & _infoManager)
 
 		// If we're getting more than 2 or three frontier squads its because the outer bases are running dry of resources.
 		// To avoid taking too many units from the front, reassign the oldest squad to the newest target.
-		if ((_infantrySquads.size() && _frontierSquads.size() >= 2) || (_mechSquads.size() && _frontierSquads.size() >= 3))
+		if ((_infantrySquads.size() && _frontierSquads.size() >= 2) || (_mechSquads.size() && _frontierSquads.size() >= 2))
 		{
 			_frontierSquads.front().setFrontierLocation(targetLocation);
 			_frontierSquads.push_back(_frontierSquads.front());
@@ -801,11 +801,25 @@ void UnitManager::update(InformationManager & _infoManager)
 		}
 	}
 
+	if (_dropSquad.size())
+	{
+		for (auto & squad : _dropSquad)
+		{
+			squad.dropIdle();
+		}
+	}
+
 	// Dropship
 	if (_infoManager.getDropships().size())
 	{
 		BWAPI::Broodwar->setLocalSpeed(10);
 		handleDropships(_infoManager);
+	}
+	else if (!_infoManager.getDropships().size() && dropping &&
+		!_dropSquad.size())
+	{
+		dropping = false;
+		_infoManager.setDropping(false);
 	}
 
 	if (_dropSquad.size() && dropping)
@@ -813,6 +827,77 @@ void UnitManager::update(InformationManager & _infoManager)
 		for (auto & squad : _dropSquad)
 		{
 			squad.drop(BWAPI::Broodwar->enemy()->getUnits());
+
+			// Check if target is destroyed
+			bool targetSuppressed = true;
+			for (auto enemy : BWAPI::Broodwar->enemy()->getUnits())
+			{
+				if (!enemy || !enemy->exists())
+					continue;
+
+				if (enemy->getDistance(squad.getSquadDropTarget()) < 300)
+				{
+					targetSuppressed = false;
+					break;
+				}
+			}
+
+			if (targetSuppressed && _infoManager.getEnemyBases().size())
+				squad.setSquadDropTarget(_infoManager.getEnemyBases().begin()->first);
+		}
+
+		
+
+		// Erase empty squads
+		for (std::list<Squad>::iterator emptySquad = _dropSquad.begin(); emptySquad != _dropSquad.end(); emptySquad++)
+		{
+			if (!emptySquad->dropSquadSize() &&
+				(!emptySquad->getDropship() || !emptySquad->getDropship()->exists()))
+			{
+				_dropSquad.erase(emptySquad);
+				break;
+			}
+		}
+	}
+
+	if (_infoManager.getStrategy() == "Nuke" &&
+		BWAPI::Broodwar->mapFileName() == "Terran08.scx" &&
+		_dropSquad.size())
+	{
+		for (std::list<Squad>::iterator squad = _dropSquad.begin(); squad != _dropSquad.end();)
+		{
+			if (squad->dropSquadSize())
+			{
+				if (squad->numMarines())
+				{
+					for (auto dropMarine : squad->getMarines())
+					{
+						if (!dropMarine || !dropMarine->exists())
+							continue;
+
+						if (_infoManager.getMarines().find(dropMarine) != _infoManager.getMarines().end())
+						{
+							_infoManager.getMarines().erase(dropMarine);
+						}
+					}
+				}
+
+				if (squad->numMedics())
+				{
+					for (auto dropMedic : squad->getMedics())
+					{
+						if (!dropMedic || !dropMedic->exists())
+							continue;
+
+						if (_infoManager.getMedics().find(dropMedic) != _infoManager.getMedics().end())
+						{
+							_infoManager.getMedics().erase(dropMedic);
+						}
+					}
+				}
+			}
+
+			squad = _dropSquad.erase(squad);
 		}
 	}
 
@@ -1216,34 +1301,6 @@ bool insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio, boo
 				}
 			}
 		}
-		else if (_dropSquad.size() && _dropSquad.front().dropSquadSize() < dropSquadSizeLimit &&
-				((unassigned->getType() == BWAPI::UnitTypes::Terran_Marine && _dropSquad.front().numMarines() < 7) ||
-				(unassigned->getType() == BWAPI::UnitTypes::Terran_Medic && _dropSquad.front().numMedics() < 1)) &&
-				!dropping)
-		{
-			for (auto & squad : _dropSquad)
-			{
-				if (squad.dropSquadSize() == dropSquadSizeLimit)
-					continue;
-
-				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Marine && squad.numMarines() >= 7)
-					continue;
-
-				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Medic && squad.numMedics() >= 1)
-					continue;
-
-				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Marine)
-				{
-					squad.addMarine(unassigned);
-					return true;
-				}
-				else if (unassigned->getType() == BWAPI::UnitTypes::Terran_Medic)
-				{
-					squad.addMedic(unassigned);
-					return true;
-				}
-			}
-		}
 		else if (_infantrySquads.size())
 		{
 			if (_frontierSquads.size())
@@ -1253,10 +1310,36 @@ bool insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio, boo
 					if (squad.frontierSquadSize() == frontierSquadSizeLimit)
 						continue;
 
-					if (unassigned->getType() == BWAPI::UnitTypes::Terran_Marine && squad.numMarines() >= 8)
+					if (unassigned->getType() == BWAPI::UnitTypes::Terran_Marine && squad.numMarines() >= 14)
 						continue;
 
 					if (unassigned->getType() == BWAPI::UnitTypes::Terran_Medic && squad.numMedics() >= 2)
+						continue;
+
+					if (unassigned->getType() == BWAPI::UnitTypes::Terran_Marine)
+					{
+						squad.addMarine(unassigned);
+						return true;
+					}
+					else if (unassigned->getType() == BWAPI::UnitTypes::Terran_Medic)
+					{
+						squad.addMedic(unassigned);
+						return true;
+					}
+				}
+			}
+
+			if (_dropSquad.size() && loadingDrop)
+			{
+				for (auto & squad : _dropSquad)
+				{
+					if (squad.dropSquadSize() == dropSquadSizeLimit)
+						continue;
+
+					if (unassigned->getType() == BWAPI::UnitTypes::Terran_Marine && squad.numMarines() >= 7)
+						continue;
+
+					if (unassigned->getType() == BWAPI::UnitTypes::Terran_Medic && squad.numMedics() >= 1)
 						continue;
 
 					if (unassigned->getType() == BWAPI::UnitTypes::Terran_Marine)
@@ -1280,12 +1363,20 @@ bool insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio, boo
 				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Marine && squad.numMarines() == 12)
 					continue;
 
+				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Firebat && squad.numFirebats() == 2)
+					continue;
+
 				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Medic && squad.numMedics() == 3)
 					continue;
 
 				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Marine)
 				{
 					squad.addMarine(unassigned);
+					return true;
+				}
+				else if (unassigned->getType() == BWAPI::UnitTypes::Terran_Firebat)
+				{
+					squad.addFirebat(unassigned);
 					return true;
 				}
 				else if (unassigned->getType() == BWAPI::UnitTypes::Terran_Medic)
@@ -1602,6 +1693,21 @@ void UnitManager::assignBio(InformationManager & _infoManager)
 		{
 			if (assignSquad(marine.first, true, false))
 				marine.second = 1;
+		}
+	}
+
+	// Loop through our firebats and make sure they are assigned to a squad
+	for (auto & firebat : _infoManager.getFirebats())
+	{
+		if (!firebat.first->exists())
+		{
+			continue;
+		}
+
+		if (firebat.second == 0)
+		{
+			if (assignSquad(firebat.first, true, false))
+				firebat.second = 1;
 		}
 	}
 
@@ -2102,7 +2208,7 @@ void insanitybot::UnitManager::handleDropships(InformationManager & _infoManager
 			continue;
 		}
 
-		if (_infoManager.getIslandBuilder() && 
+		if (_infoManager.getIslandBuilder() &&
 			(!dropping || (dropping && !dropship.first->getLoadedUnits().size())))
 		{
 			dropping = false;
@@ -2147,37 +2253,65 @@ void insanitybot::UnitManager::handleDropships(InformationManager & _infoManager
 				}
 			}
 		}
-		else if (!_dropSquad.size() && !dropping && !loadingDrop &&
-			BWAPI::Broodwar->self()->deadUnitCount(BWAPI::UnitTypes::Terran_Dropship) <= 4)
+		else if ((!_dropSquad.size() || _dropSquad.size() < _infoManager.getDropships().size()) &&
+			dropship.second == 0 && !dropping)
+			//BWAPI::Broodwar->self()->deadUnitCount(BWAPI::UnitTypes::Terran_Dropship) <= 4)
 		{
 			_dropSquad.push_back(Squad(dropship.first, false));
 			loadingDrop = true;
+			dropship.second = 1;
 		}
 		else if (_dropSquad.size() && loadingDrop)
 		{
 			if (dropship.first->getSpaceRemaining())
-				_dropSquad.front().loadDrop(dropship.first);
-			else if (!dropship.first->getSpaceRemaining() &&
-					dropship.first->getHitPoints() == dropship.first->getType().maxHitPoints())
 			{
-				loadingDrop = false;
-				dropping = true;
+				for (auto squad : _dropSquad)
+				{
+					if (squad.getDropship() && squad.getDropship()->exists() &&
+						squad.getDropship() == dropship.first)
+					{
+						squad.loadDrop(dropship.first);
+					}
+				}
 			}
+			else if (!dropship.first->getSpaceRemaining() &&
+				dropship.first->getHitPoints() == dropship.first->getType().maxHitPoints())
+			{
+				//loadingDrop = false;
+				//dropping = true;
+
+				int numLoaded = 0;
+
+				for (auto innerLoopDrop : _infoManager.getDropships())
+				{
+					if (!innerLoopDrop.first || !innerLoopDrop.first->exists())
+						continue;
+
+					if (!innerLoopDrop.first->getSpaceRemaining())
+						numLoaded++;
+				}
+
+				if (numLoaded == _infoManager.numLoadedDropsWanted()) //||
+					//(BWAPI::Broodwar->self()->deadUnitCount(BWAPI::UnitTypes::Terran_Dropship) <= 4 && numLoaded == _infoManager.getDropships().size()))
+				{
+					loadingDrop = false;
+					dropping = true;
+					_infoManager.setDropping(true);
+				}
+			}
+
 		}
 		else if (dropping && dropship.first->getLoadedUnits().size() > 0)
 		{
 			const BWAPI::Position target = _infoManager.getDropLocation(dropship.first);
 
-			if (_dropSquad.size() && _dropSquad.front().getSquadDropTarget() == BWAPI::Position(0, 0))
-				_dropSquad.front().setSquadDropTarget(target);
+			if (_dropSquad.size())
+				for (auto & squad : _dropSquad)
+					squad.setSquadDropTarget(target);
 
 			if ((dropship.first->getHitPoints() < 50 || target && dropship.first->getDistance(target) < 300) &&
 				dropship.first->canUnloadAtPosition(dropship.first->getPosition()))
 			{
-				// Make sure the squad knows where it is going after boots hit the ground
-				if (_dropSquad.size())
-					_dropSquad.front().setSquadDropTarget(target);
-
 				if (dropship.first->isIdle())
 				{
 					dropship.first->move(target);
@@ -2197,24 +2331,71 @@ void insanitybot::UnitManager::handleDropships(InformationManager & _infoManager
 				dropship.first->unloadAll(dropship.first->getPosition());
 			}
 			else
-				followPerimiter(dropship.first, target);
+				followPerimiter(dropship.first, target); //dropship.first->move(target);
 		}
 		else if (dropping && !dropship.first->getLoadedUnits().size())
 		{
-			_waypoints.clear();
-			_direction = 0;
-
-			if (!_infoManager.closeEnough(dropship.first->getPosition(), BWAPI::Position(_infoManager.getMainPosition())))
-				dropship.first->move(BWAPI::Position(_infoManager.getMainPosition()));
-
-			if (!_dropSquad.front().dropSquadSize())
+			int numUnloaded = 0;
+			for (auto innerLoopDrop : _infoManager.getDropships())
 			{
-				dropping = false;
-				loadingDrop = true;
+				if (innerLoopDrop.first && innerLoopDrop.first->exists() &&
+					!innerLoopDrop.first->getLoadedUnits().size())
+					numUnloaded++;
+			}
+
+			if (numUnloaded == _infoManager.getDropships().size())
+			{
+				_waypoints.clear();
+				_direction = 0;
+
+				if (!_infoManager.closeEnough(dropship.first->getPosition(), BWAPI::Position(_infoManager.getMainPosition()) - BWAPI::Position(100, 100)))
+					dropship.first->move(BWAPI::Position(_infoManager.getMainPosition()) - BWAPI::Position(100, 100));
+
+				int numDead = 0;
+
+				for (auto squad : _dropSquad)
+				{
+					if (!squad.dropSquadSize())
+						numDead++;
+				}
+
+				if (numDead == _dropSquad.size())
+				{
+					dropping = false;
+					loadingDrop = true;
+					_infoManager.setDropping(false);
+				}
 			}
 		}
-
 	}
+}
+
+bool insanitybot::UnitManager::haveOpenDropMarines()
+{
+	int fullSquads = 0;
+
+	for (auto squad : _dropSquad)
+	{
+		if (squad.numMarines() == 7)
+			fullSquads++;
+	}
+
+	BWAPI::Broodwar << "Full Marines: " << fullSquads << std::endl;
+	BWAPI::Broodwar << "Drop Squads: " << _dropSquad.size() << std::endl;
+	return fullSquads < _dropSquad.size();
+}
+
+bool insanitybot::UnitManager::haveOpenDropMedics()
+{
+	int fullSquads = 0;
+
+	for (auto squad : _dropSquad)
+	{
+		if (squad.numMedics() == 1)
+			fullSquads++;
+	}
+
+	return fullSquads < _dropSquad.size();
 }
 
 BWAPI::Position insanitybot::UnitManager::TileCenter(const BWAPI::TilePosition & tile)
@@ -2508,6 +2689,7 @@ void insanitybot::UnitManager::checkFlareDBForTimeout()
 ****************************************************************/
 void insanitybot::UnitManager::infoText()
 {
+	BWAPI::Broodwar->drawTextScreen(50, 90, "numDropSquads: %d", _dropSquad.size());
 
 	//BWAPI::Broodwar->drawTextScreen(50, 90, "numFrontierSquads: %d", _frontierSquads.size());
 	//BWAPI::Broodwar->drawTextScreen(50, 100, "frontierSquadSizeLimit: %d", frontierSquadSizeLimit);

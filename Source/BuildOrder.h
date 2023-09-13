@@ -23,6 +23,7 @@ namespace insanitybot
 
 		void SKTerran(InformationManager & _infoManager);
 		void Nuke(InformationManager & _infoManager);
+		void BioDrops(InformationManager & _infoManager);
 		void Mech(InformationManager & _infoManager);
 		void MechVT(InformationManager & _infoManager);
 		void BCMeme(InformationManager & _infoManager);
