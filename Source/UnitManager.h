@@ -70,6 +70,8 @@ namespace insanitybot
 		void handleFloaters(InformationManager & _infoManager, BWAPI::TilePosition nextUp);
 
 		void handleDropships(InformationManager & _infoManager);
+		bool haveOpenDropMarines();
+		bool haveOpenDropMedics();
 		BWAPI::Position TileCenter(const BWAPI::TilePosition & tile);
 		int waypointIndex(int i);
 		const BWAPI::Position & waypoint(int i);

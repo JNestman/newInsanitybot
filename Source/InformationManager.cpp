@@ -32,7 +32,14 @@ insanitybot::InformationManager::InformationManager()
 
 	if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
 	{
-		_strategy = "Nuke";
+		switch (_randomChoice)
+		{
+		case 1:
+			_strategy = "Nuke";
+		default:
+			_strategy = "BioDrops";
+			break;
+		}
 	}
 	else if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss)
 	{
@@ -46,7 +53,8 @@ insanitybot::InformationManager::InformationManager()
 			break;
 		}
 
-		if (_enemy->getName() == "Tomas Vajda")
+		if (_enemy->getName() == "Tomas Vajda" ||
+			_enemy->getName() == "Stardust")
 		{
 			_strategy = "OneFacAllIn";
 		}
@@ -694,7 +702,10 @@ void InformationManager::checkForDeadRefineries()
 *****************************************************/
 void InformationManager::update()
 {
-	if (!getAggression() && isBio(_strategy) && _marines.size() > 30)
+	if (!getAggression() && isBio(_strategy) && 
+		((_marines.size() > 30 && _strategy != "BioDrops") ||
+		(_strategy == "BioDrops" && _dropships.size() && 
+		_dropships.begin()->first->getDistance(getDropLocation(_dropships.begin()->first)) < 300)))
 	{
 		setAggression(true);
 	}
@@ -882,7 +893,7 @@ void InformationManager::update()
 			}
 
 			_queue.clear();
-			_strategy = "1BaseMech";
+			_strategy = "OneFacAllIn";
 		}
 	}
 
@@ -894,7 +905,7 @@ void InformationManager::update()
 	_injuredBuildings.clear();
 	_floatingBuildings.clear();
 
-	std::vector<std::reference_wrapper<std::map<BWAPI::Unit, int>>> masterUnitList = { _marines, _medics, _ghosts, _vultures, _goliaths, _tanks, _vessels, _dropships, _bcs };
+	std::vector<std::reference_wrapper<std::map<BWAPI::Unit, int>>> masterUnitList = { _marines, _firebats, _medics, _ghosts, _vultures, _goliaths, _tanks, _vessels, _dropships, _bcs };
 	std::vector<std::reference_wrapper<std::list<BWAPI::Unit>>> masterBuildingList = { _slugDepots, _barracks, _factories, _starports, _science, _armories, _academy, _engibays, _bunkers, _comsats };
 	
 	for (auto &unitList : masterUnitList) checkForDeadMap(unitList);
@@ -1050,80 +1061,77 @@ void InformationManager::update()
 
 				_workers.insert(std::make_pair(myUnit, assignedBase));
 			}
-		}
-		// Insert Marines
+		} // Insert Marines
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Marine && myUnit->getPlayer() == _self)
 		{
 			if (_marines.find(myUnit) != _marines.end())
 				continue;
 
 			_marines.insert(std::pair<BWAPI::Unit, int>(myUnit, 0));
-		}
-		// Medics
+		} // Insert Firebats
+		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Firebat && myUnit->getPlayer() == _self)
+		{
+			if (_firebats.find(myUnit) != _firebats.end())
+				continue;
+
+			_firebats.insert(std::pair<BWAPI::Unit, int>(myUnit, 0));
+		} // Medics
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Medic && myUnit->getPlayer() == _self)
 		{
 			if (_medics.find(myUnit) != _medics.end())
 				continue;
 
 			_medics.insert(std::pair<BWAPI::Unit, int>(myUnit, 0));
-		}
-		// Ghosts
+		} // Ghosts
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Ghost && myUnit->getPlayer() == _self)
 		{
 			if (_ghosts.find(myUnit) != _ghosts.end())
 				continue;
 
 			_ghosts.insert(std::pair<BWAPI::Unit, int>(myUnit, 0));
-		}
-		// Dropships
+		} // Dropships
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Dropship && myUnit->getPlayer() == _self)
 		{
 			if (_dropships.find(myUnit) != _dropships.end())
 				continue;
 
 			_dropships.insert(std::pair<BWAPI::Unit, int>(myUnit, 0));
-		}
-		// Vessels
+		} // Vessels
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Science_Vessel && myUnit->getPlayer() == _self)
 		{
 			if (_vessels.find(myUnit) != _vessels.end())
 				continue;
 
 			_vessels.insert(std::pair<BWAPI::Unit, int>(myUnit, 0));
-		}
-		// Vultuers
+		} // Vultuers
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Vulture && myUnit->getPlayer() == _self)
 		{
 			if (_vultures.find(myUnit) != _vultures.end())
 				continue;
 
 			_vultures.insert(std::pair<BWAPI::Unit, int>(myUnit, 0));
-		}
-		// Tanks
+		} // Tanks
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode && myUnit->getPlayer() == _self)
 		{
 			if (_tanks.find(myUnit) != _tanks.end())
 				continue;
 
 			_tanks.insert(std::pair<BWAPI::Unit, int>(myUnit, 0));
-		}
-		// Goliaths
+		} // Goliaths
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Goliath && myUnit->getPlayer() == _self)
 		{
 			if (_goliaths.find(myUnit) != _goliaths.end())
 				continue;
 
 			_goliaths.insert(std::pair<BWAPI::Unit, int>(myUnit, 0));
-		}
-		// BCs
+		} // BCs
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Battlecruiser && myUnit->getPlayer() == _self)
 		{
 			if (_bcs.find(myUnit) != _bcs.end())
 				continue;
 
 			_bcs.insert(std::pair<BWAPI::Unit, int>(myUnit, 0));
-		}
-		// Supply Depots
+		} // Supply Depots
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Supply_Depot && myUnit->getPlayer() == _self)
 		{
 			if (std::find(_slugDepots.begin(), _slugDepots.end(), myUnit) != _slugDepots.end())
@@ -1131,8 +1139,7 @@ void InformationManager::update()
 
 			_slugDepots.push_back(myUnit);
 			checkQueue(myUnit);
-		}
-		// Barracks
+		} // Barracks
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Barracks && myUnit->getPlayer() == _self)
 		{
 			if (std::find(_barracks.begin(), _barracks.end(), myUnit) != _barracks.end())
@@ -1140,8 +1147,7 @@ void InformationManager::update()
 
 			_barracks.push_back(myUnit);
 			checkQueue(myUnit);
-		}
-		// Factory
+		} // Factory
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Factory && myUnit->getPlayer() == _self)
 		{
 			if (std::find(_factories.begin(), _factories.end(), myUnit) != _factories.end())
@@ -1149,8 +1155,7 @@ void InformationManager::update()
 
 			_factories.push_back(myUnit);
 			checkQueue(myUnit);
-		}
-		// Starport
+		} // Starport
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Starport && myUnit->getPlayer() == _self)
 		{
 			if (std::find(_starports.begin(), _starports.end(), myUnit) != _starports.end())
@@ -1158,8 +1163,7 @@ void InformationManager::update()
 
 			_starports.push_back(myUnit);
 			checkQueue(myUnit);
-		}
-		// Academy
+		} // Academy
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Academy && myUnit->getPlayer() == _self)
 		{
 			if (std::find(_academy.begin(), _academy.end(), myUnit) != _academy.end())
@@ -1167,8 +1171,7 @@ void InformationManager::update()
 
 			_academy.push_back(myUnit);
 			checkQueue(myUnit);
-		}
-		// Engibays
+		} // Engibays
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Engineering_Bay && myUnit->getPlayer() == _self)
 		{
 			if (std::find(_engibays.begin(), _engibays.end(), myUnit) != _engibays.end())
@@ -1176,8 +1179,7 @@ void InformationManager::update()
 
 			_engibays.push_back(myUnit);
 			checkQueue(myUnit);
-		}
-		// Armory
+		} // Armory
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Armory && myUnit->getPlayer() == _self)
 		{
 			if (std::find(_armories.begin(), _armories.end(), myUnit) != _armories.end())
@@ -1185,8 +1187,7 @@ void InformationManager::update()
 
 			_armories.push_back(myUnit);
 			checkQueue(myUnit);
-		}
-		// Science Facility
+		} // Science Facility
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Science_Facility && myUnit->getPlayer() == _self)
 		{
 			if (std::find(_science.begin(), _science.end(), myUnit) != _science.end())
@@ -1194,8 +1195,7 @@ void InformationManager::update()
 
 			_science.push_back(myUnit);
 			checkQueue(myUnit);
-		}
-		// Addons
+		} // Addons
 		else if (myUnit->getType().isAddon() && myUnit->getPlayer() == _self)
 		{
 			if (myUnit->getType() == BWAPI::UnitTypes::Terran_Comsat_Station)
@@ -1219,8 +1219,7 @@ void InformationManager::update()
 
 				_addons.push_back(myUnit);
 			}
-		}
-		// Turrets
+		} // Turrets
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Missile_Turret && myUnit->getPlayer() == _self)
 		{
 			if (std::find(_turrets.begin(), _turrets.end(), myUnit) != _turrets.end())
@@ -1246,8 +1245,7 @@ void InformationManager::update()
 
 			_turrets.push_back(myUnit);
 			checkQueue(myUnit);
-		}
-		// Insert command center as new base being taken
+		} // Insert command center as new base being taken
 		else if (myUnit->getType().isResourceDepot() && myUnit->getPlayer() == _self)
 		{
 			if (std::find(_commandCenters.begin(), _commandCenters.end(), myUnit) != _commandCenters.end() ||
@@ -1290,8 +1288,7 @@ void InformationManager::update()
 				_commandCenters.push_back(myUnit);
 
 			checkQueue(myUnit);
-		}
-		// Refineries should be assigned to their respective bases
+		} // Refineries should be assigned to their respective bases
 		else if (myUnit->getType().isRefinery() && myUnit->getPlayer() == _self)
 		{
 			if (std::find(_refineries.begin(), _refineries.end(), myUnit) != _refineries.end())
@@ -1317,8 +1314,7 @@ void InformationManager::update()
 
 			_refineries.push_back(myUnit);
 			checkQueue(myUnit);
-		}
-		// Bunkers are tracked seperately for repair purposes
+		} // Bunkers are tracked seperately for repair purposes
 		else if (myUnit->getType() == BWAPI::UnitTypes::Terran_Bunker && myUnit->getPlayer() == _self)
 		{
 			if (std::find(_bunkers.begin(), _bunkers.end(), myUnit) != _bunkers.end())
@@ -1482,6 +1478,10 @@ void insanitybot::InformationManager::updateBuildOrder()
 		else if (_strategy == "Nuke")
 		{
 			_buildOrder->Nuke(*this);
+		}
+		else if (_strategy == "BioDrops")
+		{
+			_buildOrder->BioDrops(*this);
 		}
 		else if (_strategy == "BCMeme")
 		{
@@ -2129,13 +2129,24 @@ BWAPI::Position InformationManager::getDropLocation(BWAPI::Unit dropship)
 {
 	BWAPI::Position target = BWAPI::Position(_enemyMainPos);
 
+	if (_strategy == "BioDrops")
+		return target;
+
+	bool hasMain = false;
 	for (auto base : _enemyBases)
 	{
+		if (!hasMain && closeEnough(BWAPI::Position(_enemyMainPos), base.first))
+			hasMain = true;
+
 		if (dropship->getDistance(base.first) < 300)
 		{
 			target = base.first;
 		}
 	}
+
+	if (!hasMain && target == BWAPI::Position(_enemyMainPos) &&
+		_enemyBases.size())
+		target = _enemyBases.begin()->first;
 
 	return target;
 }

@@ -293,7 +293,23 @@ void CreationManager::update(InformationManager & _infoManager)
 	/****************************************************
 	* Check our idle production and put them to work
 	*****************************************************/
+	int numMarines = _infoManager.getMarines().size();
 	int numGhosts = _infoManager.getGhosts().size();
+
+	// We want a ratio of one firebat every ten marines
+	int numFirebatsWanted = 0;
+	if (numMarines >= 10)
+		numFirebatsWanted = numMarines / 10;
+
+	// We want a ration of one medic per three or four marines pending strat
+	int numMedicsWanted = 0;
+	if (numMarines >= 10)
+	{
+		if (_infoManager.isAllIn(_infoManager.getStrategy()))
+			numMedicsWanted = numMarines / 3;
+		else
+			numMedicsWanted = numMarines / 4;
+	}
 
 	for (auto & rax : _infoManager.getBarracks())
 	{
@@ -301,10 +317,6 @@ void CreationManager::update(InformationManager & _infoManager)
 		{
 			if (rax->exists() && rax->isIdle())
 			{
-				int numMedicsWanted = 0;
-				if (_infoManager.getMarines().size() >= 10)
-					numMedicsWanted = _infoManager.getMarines().size() / 4;
-
 				if (_infoManager.getStrategy() == "Nuke" && 
 					_infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Academy) &&
 					_infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Science_Facility) && 
@@ -330,6 +342,18 @@ void CreationManager::update(InformationManager & _infoManager)
 					gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Medic.gasPrice();
 					numMedicsWanted -= 1;
 					supplyLeft -= BWAPI::UnitTypes::Terran_Medic.supplyRequired();
+				}
+				else if (!_infoManager.isAllIn(_infoManager.getStrategy()) &&
+					numFirebatsWanted > _infoManager.getFirebats().size() && _infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Academy) > 0 &&
+					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Firebat.mineralPrice() &&
+					gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Firebat.gasPrice() &&
+					BWAPI::UnitTypes::Terran_Firebat.supplyRequired() <= supplyLeft)
+				{
+					rax->train(BWAPI::UnitTypes::Terran_Firebat);
+					mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Firebat.mineralPrice();
+					gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Firebat.gasPrice();
+					numFirebatsWanted -= 1;
+					supplyLeft -= BWAPI::UnitTypes::Terran_Firebat.supplyRequired();
 				}
 				else if (mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Marine.mineralPrice() &&
 					BWAPI::UnitTypes::Terran_Marine.supplyRequired() <= supplyLeft)
@@ -494,7 +518,8 @@ void CreationManager::update(InformationManager & _infoManager)
 					gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Battlecruiser.gasPrice();
 					supplyLeft -= BWAPI::UnitTypes::Terran_Battlecruiser.supplyRequired();
 				}
-				if (_infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Dropship) < 1 && 
+				if ((_infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Dropship) < 1 || 
+					(_infoManager.getStrategy() == "BioDrops" && _infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Dropship) < 4)) && 
 					(_infoManager.getIslandBases().size() || _infoManager.getOwnedIslandBases().size() || 
 					BWAPI::Broodwar->self()->deadUnitCount(BWAPI::UnitTypes::Terran_Dropship) <= 4) &&
 					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Dropship.mineralPrice() &&
@@ -560,8 +585,7 @@ void CreationManager::update(InformationManager & _infoManager)
 			}
 			else if (_self->hasResearched(BWAPI::TechTypes::Stim_Packs) && !_self->hasResearched(BWAPI::TechTypes::Optical_Flare) &&
 				mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::TechTypes::Optical_Flare.mineralPrice() &&
-				gasLeft - _infoManager.getReservedGas() >= BWAPI::TechTypes::Optical_Flare.gasPrice() &&
-				!_infoManager.isAllIn(_infoManager.getStrategy()))
+				gasLeft - _infoManager.getReservedGas() >= BWAPI::TechTypes::Optical_Flare.gasPrice())
 			{
 				academy->research(BWAPI::TechTypes::Optical_Flare);
 				mineralsLeft = mineralsLeft - BWAPI::TechTypes::Optical_Flare.mineralPrice();

@@ -68,7 +68,7 @@ void insanitybotModule::onStart()
 
 			Broodwar << "glhf" << std::endl;
 
-			Broodwar->setLocalSpeed(10);
+			Broodwar->setLocalSpeed(0);
 
 			commander.initialize();
 		}

@@ -22,8 +22,8 @@ namespace insanitybot
 		// Variables
 		std::string											_strategy;
 		std::vector<std::string>							_1BaseStrat {"8RaxDef", "8RaxAgg", "1BaseMech", "TONK", "OneFacAllIn", "BBS", "MechAllIn"};
-		std::vector<std::string>							_2BaseStrat	{"SKTerran", "Mech", "MechVT", "Nuke", "BCMeme"};
-		std::vector<std::string>							_bio		{"8RaxDef", "8RaxAgg", "SKTerran", "Nuke"};
+		std::vector<std::string>							_2BaseStrat	{"SKTerran", "Mech", "MechVT", "Nuke", "BCMeme", "BioDrops"};
+		std::vector<std::string>							_bio		{"8RaxDef", "8RaxAgg", "SKTerran", "Nuke", "BioDrops"};
 		std::vector<std::string>							_mech		{"Mech", "MechVT", "1BaseMech", "TONK", "BCMeme"};
 		std::vector<std::string>							_airStrat	{"BCMeme"};
 		std::vector<std::string>							_allIn		{ "OneFacAllIn", "BBS", "MechAllIn" };
@@ -85,6 +85,7 @@ namespace insanitybot
 		std::list<BWAPI::Unit>								_science;
 
 		std::map<BWAPI::Unit, int>							_marines;
+		std::map<BWAPI::Unit, int>							_firebats;
 		std::map<BWAPI::Unit, int>							_medics;
 		std::map<BWAPI::Unit, int>							_ghosts;
 		std::map<BWAPI::Unit, int>							_dropships;
@@ -121,6 +122,7 @@ namespace insanitybot
 		bool												_enemyRushing;
 		bool												_enemyHasDtLurker;
 
+		bool												_dropping;
 		bool												_targetDefended;
 		bool												_nukeDotDetected;
 		int													_waitASec;
@@ -176,6 +178,7 @@ namespace insanitybot
 		BWAPI::Unitset getIslandSmallMinerals()							{ return _islandSmallMinerals; };
 
 		std::map<BWAPI::Unit, int>& getMarines()						{ return _marines; };
+		std::map<BWAPI::Unit, int>& getFirebats()						{ return _firebats; };
 		std::map<BWAPI::Unit, int>& getMedics()							{ return _medics; };
 		std::map<BWAPI::Unit, int>& getGhosts()							{ return _ghosts; };
 		std::map<BWAPI::Unit, int>& getDropships()						{ return _dropships; };
@@ -238,7 +241,11 @@ namespace insanitybot
 		bool isAirStrat(std::string strat)			{ return std::find(_airStrat.begin(), _airStrat.end(), strat) != _airStrat.end(); };
 		bool isAllIn(std::string strat)				{ return std::find(_allIn.begin(), _allIn.end(), strat) != _allIn.end(); };
 
-		bool shouldIslandExpand()					{ return _islandExpand; };
+		bool shouldIslandExpand()					{ return false; };//return _islandExpand; }; // TODO: Work out drops/island expansion hiccups
+
+		int numLoadedDropsWanted()					{ return ((_strategy == "BioDrops") ? 4 : 1); }
+		bool getDropping()							{ return _dropping; };
+		void setDropping(bool dropping)				{ _dropping = dropping; };
 
 		bool enemyHasAir()							{ return _enemyHasAir; };
 		bool enemyHasDtLurker()						{ return _enemyHasDtLurker; };

@@ -362,7 +362,8 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 	//Bunkers go to choke positions
 	else if (building == BWAPI::UnitTypes::Terran_Bunker)
 	{
-		if (_infoManager.isOneBasePlay(_infoManager.getStrategy()) && _infoManager.getStrategy() != "MechAllIn")
+		if (_infoManager.isOneBasePlay(_infoManager.getStrategy()) && _infoManager.getStrategy() != "MechAllIn" &&
+			!_infoManager.isExpanding())
 		{
 			bool bunkerSpotBuildable = BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()), true) &&
 				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 0), true) &&

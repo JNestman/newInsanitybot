@@ -27,6 +27,7 @@ insanitybot::Squad::Squad(BWAPI::Unit unit, bool isAllIn)
 	_bcs.clear();
 
 	nuker = NULL;
+	dropship = NULL;
 
 	if (unit->getType() == BWAPI::UnitTypes::Terran_Marine)
 	{
@@ -51,6 +52,10 @@ insanitybot::Squad::Squad(BWAPI::Unit unit, bool isAllIn)
 	else if (unit->getType() == BWAPI::UnitTypes::Terran_Goliath)
 	{
 		_goliaths.push_back(unit);
+	}
+	else if (unit->getType() == BWAPI::UnitTypes::Terran_Dropship)
+	{
+		dropship = unit;
 	}
 	else if (unit->getType() == BWAPI::UnitTypes::Terran_Battlecruiser)
 	{
@@ -143,6 +148,7 @@ void insanitybot::Squad::attack(BWAPI::Position attackPoint, BWAPI::Position for
 	* Bio
 	*****************************************************************************************/
 	handleMarines(attackPoint, forwardGather, haveGathered, injured, _activePsiStorms, _activeScarabs, enemyUnits, NULL, BWAPI::Position(0,0));
+	handleFirebats(attackPoint, forwardGather, haveGathered, injured, _activePsiStorms, _activeScarabs, enemyUnits, NULL, BWAPI::Position(0, 0));
 	handleMedics(_flareBD, injured, _activePsiStorms, _activeScarabs, BWAPI::Position(0, 0));
 
 	/****************************************************************************************
@@ -454,6 +460,7 @@ void insanitybot::Squad::attack(BWAPI::Unit target, std::map<BWAPI::Unit, std::p
 	* Bio
 	*****************************************************************************************/
 	handleMarines(BWAPI::Position(0, 0), BWAPI::Position(0, 0), haveGathered, injured, _activePsiStorms, _activeScarabs, enemyUnits, target, BWAPI::Position(0,0));
+	handleFirebats(BWAPI::Position(0, 0), BWAPI::Position(0, 0), haveGathered, injured, _activePsiStorms, _activeScarabs, enemyUnits, target, BWAPI::Position(0, 0));
 	handleMedics(_flareBD, injured, _activePsiStorms, _activeScarabs, BWAPI::Position(0,0));
 
 	/****************************************************************************************
@@ -578,6 +585,7 @@ void insanitybot::Squad::gather(BWAPI::Position gatherPoint, std::map<BWAPI::Uni
 	* Bio
 	*****************************************************************************************/
 	handleMarines(BWAPI::Position(0, 0), BWAPI::Position(0, 0), haveGathered, injured, _activePsiStorms, _activeScarabs, enemyUnits, NULL, gatherPoint);
+	handleFirebats(BWAPI::Position(0, 0), BWAPI::Position(0, 0), haveGathered, injured, _activePsiStorms, _activeScarabs, enemyUnits, NULL, gatherPoint);
 	handleMedics(_flareBD, injured, _activePsiStorms, _activeScarabs, gatherPoint);
 
 	/****************************************************************************************
@@ -680,7 +688,10 @@ void insanitybot::Squad::gather(BWAPI::Position gatherPoint, std::map<BWAPI::Uni
 	{
 		if (!(*ghost) || !(*ghost)->exists())
 		{
-			ghost = _marines.erase(ghost);
+			if ((*ghost) == nuker)
+				nuker = NULL;
+
+			ghost = _ghosts.erase(ghost);
 		}
 		else
 		{
@@ -930,11 +941,13 @@ void insanitybot::Squad::loadDrop(BWAPI::Unit dropship)
 			{
 				marine = _marines.erase(marine);
 			}
+			else
+			{
+				if (!(*marine)->isLoaded())
+					(*marine)->load(dropship);
 
-			if (!(*marine)->isLoaded())
-				(*marine)->load(dropship);
-
-			marine++;
+				marine++;
+			}
 		}
 	}
 
@@ -946,11 +959,13 @@ void insanitybot::Squad::loadDrop(BWAPI::Unit dropship)
 			{
 				medic = _medics.erase(medic);
 			}
+			else
+			{
+				if (!(*medic)->isLoaded())
+					(*medic)->load(dropship);
 
-			if (!(*medic)->isLoaded())
-				(*medic)->load(dropship);
-
-			medic++;
+				medic++;
+			}
 		}
 	}
 
@@ -962,11 +977,13 @@ void insanitybot::Squad::loadDrop(BWAPI::Unit dropship)
 			{
 				vulture = _vultures.erase(vulture);
 			}
+			else
+			{
+				if (!vulture->first->isLoaded())
+					vulture->first->load(dropship);
 
-			if (!vulture->first->isLoaded())
-				vulture->first->load(dropship);
-
-			vulture++;
+				vulture++;
+			}
 		}
 	}
 
@@ -978,11 +995,13 @@ void insanitybot::Squad::loadDrop(BWAPI::Unit dropship)
 			{
 				goliath = _goliaths.erase(goliath);
 			}
+			else
+			{
+				if (!(*goliath)->isLoaded())
+					(*goliath)->load(dropship);
 
-			if (!(*goliath)->isLoaded())
-				(*goliath)->load(dropship);
-
-			goliath++;
+				goliath++;
+			}
 		}
 	}
 
@@ -994,11 +1013,15 @@ void insanitybot::Squad::loadDrop(BWAPI::Unit dropship)
 			{
 				tank = _tanks.erase(tank);
 			}
+			else
+			{
+				if (!tank->first->isLoaded() && !tank->first->isSieged())
+					tank->first->load(dropship);
+				else if (tank->first->isSieged())
+					tank->first->unsiege();
 
-			if (!tank->first->isLoaded())
-				tank->first->load(dropship);
-
-			tank++;
+				tank++;
+			}
 		}
 	}
 }
@@ -1239,6 +1262,42 @@ void insanitybot::Squad::drop(BWAPI::Unitset enemyUnits)
 	}
 }
 
+void insanitybot::Squad::dropIdle()
+{
+	if (!dropSquadSize())
+		return;
+
+	if (_marines.size())
+	{
+		for (std::list <BWAPI::Unit>::iterator & marine = _marines.begin(); marine != _marines.end();)
+		{
+			if (!(*marine) || !(*marine)->exists())
+			{
+				marine = _marines.erase(marine);
+			}
+			else
+			{
+				marine++;
+			}
+		}
+	}
+
+	if (_medics.size())
+	{
+		for (std::list <BWAPI::Unit>::iterator & medic = _medics.begin(); medic != _medics.end();)
+		{
+			if (!(*medic) || !(*medic)->exists())
+			{
+				medic = _medics.erase(medic);
+			}
+			else
+			{
+				medic++;
+			}
+		}
+	}
+}
+
 /***************************************************************
 * Unit specific orders will be handled here
 ****************************************************************/
@@ -1410,6 +1469,178 @@ void insanitybot::Squad::handleMarines(BWAPI::Position attackPoint, BWAPI::Posit
 			}
 
 			marine++;
+		}
+	}
+}
+
+// Firebats will currently only be used in SKTerran/Nuke builds
+void insanitybot::Squad::handleFirebats(BWAPI::Position attackPoint, BWAPI::Position forwardGather, bool haveGathered, std::list<BWAPI::Unit>& injured,
+	std::list<BWAPI::Bullet> _activePsiStorms, std::list<BWAPI::Unit> _activeScarabs, BWAPI::Unitset enemyUnits, BWAPI::Unit target, BWAPI::Position gatherPoint)
+{
+	for (std::list <BWAPI::Unit>::iterator & firebat = _firebats.begin(); firebat != _firebats.end();)
+	{
+		if (!(*firebat) || !(*firebat)->exists())
+		{
+			firebat = _firebats.erase(firebat);
+		}
+		else
+		{
+			bool dodging = false;
+
+			if (_activePsiStorms.size())
+			{
+				for (auto storm : _activePsiStorms)
+				{
+					if ((*firebat)->getDistance(storm->getPosition()) < 100)
+					{
+						(*firebat)->move(stormDodge((*firebat)->getPosition(), storm->getPosition()));
+						dodging = true;
+						break;
+					}
+				}
+			}
+
+			if (_activeScarabs.size())
+			{
+				for (auto scarab : _activeScarabs)
+				{
+					if (scarab->getOrderTarget() == (*firebat))
+					{
+						if (!(*firebat)->isStimmed() && BWAPI::Broodwar->self()->hasResearched(BWAPI::TechTypes::Stim_Packs))
+							(*firebat)->useTech(BWAPI::TechTypes::Stim_Packs);
+						else
+							(*firebat)->move(scarab->getPosition());
+
+						dodging = true;
+						break;
+					}
+					else if ((*firebat)->getDistance(scarab->getOrderTargetPosition()) < 70)
+					{
+						(*firebat)->move(scarabDodge((*firebat)->getPosition(), scarab->getOrderTargetPosition()));
+						dodging = true;
+						break;
+					}
+				}
+			}
+
+			if (dodging)
+			{
+				firebat++;
+				continue;
+			}
+
+			int closestEnemy = 9999999;
+			BWAPI::Position enemyGuy = BWAPI::Position(0, 0);
+			for (auto enemy : enemyUnits)
+			{
+				if (!enemy)
+					continue;
+
+				if (enemy->exists() && (*firebat)->getDistance(enemy) < closestEnemy)
+				{
+					closestEnemy = (*firebat)->getDistance(enemy);
+					enemyGuy = enemy->getPosition();
+				}
+			}
+
+
+			int closest = 999999;
+			BWAPI::Unit closestTankToTarget = NULL;
+			if (_tanks.size())
+			{
+				for (std::map<BWAPI::Unit, int>::iterator tank = _tanks.begin(); tank != _tanks.end();)
+				{
+					if (!tank->first || !tank->first->exists())
+					{
+						tank = _tanks.erase(tank);
+					}
+					else
+					{
+						if (!haveGathered && tank->first->getDistance(forwardGather) < closest)
+						{
+							closestTankToTarget = tank->first;
+							closest = tank->first->getDistance(forwardGather);
+						}
+						else if (haveGathered && tank->first->getDistance(attackPoint) < closest)
+						{
+							closestTankToTarget = tank->first;
+
+							closest = tank->first->getDistance(attackPoint);
+						}
+
+						tank++;
+					}
+				}
+			}
+
+			if (closestTankToTarget != NULL) // This firebat is part of an All In squad
+			{
+				if (((*firebat)->getDistance(closestTankToTarget) < 64 || isMaxSupply()) &&
+					(closestEnemy > BWAPI::UnitTypes::Terran_Marine.groundWeapon().maxRange() + 8))
+				{
+					(*firebat)->attack(attackPoint);
+				}
+				else if ((*firebat)->getDistance(closestTankToTarget) > 128 &&
+					(closestEnemy > BWAPI::UnitTypes::Terran_Marine.groundWeapon().maxRange() + 8))
+				{
+					(*firebat)->attack(closestTankToTarget->getPosition());
+				}
+			}
+			else if (target != NULL) // This firebat is part of a defensive squad that is clearing a nuetral structure
+			{
+				if (!(*firebat)->isAttacking() && !(*firebat)->isMoving() && !(*firebat)->isUnderAttack())
+				{
+					if (target->exists())
+						(*firebat)->attack(target);
+
+					if (!closeEnough((*firebat)->getPosition(), target->getInitialPosition()))
+					{
+						(*firebat)->move(target->getInitialPosition());
+					}
+				}
+			}
+			else if (gatherPoint != BWAPI::Position(0, 0)) // This firebat has been asked to gather up at a given point
+			{
+				if (!closeEnough(gatherPoint, (*firebat)->getPosition()) &&
+					(closestEnemy > BWAPI::UnitTypes::Terran_Marine.groundWeapon().maxRange() + 8))
+					(*firebat)->attack(gatherPoint);
+			}
+			else // This firebat is part of a normal squad and has a position as a target
+			{
+				if ((!(*firebat)->isAttacking() && !(*firebat)->isMoving() && !(*firebat)->isUnderAttack()) ||
+					(closestEnemy > BWAPI::UnitTypes::Terran_Marine.groundWeapon().maxRange() + 8))
+				{
+					if (haveGathered)
+					{
+						if (!closeEnough((*firebat)->getPosition(), attackPoint))
+							(*firebat)->attack(attackPoint);
+					}
+					else
+					{
+						if (!closeEnough((*firebat)->getPosition(), forwardGather))
+						{
+							(*firebat)->attack(forwardGather);
+						}
+					}
+				}
+			}
+
+			if (BWAPI::Broodwar->self()->hasResearched(BWAPI::TechTypes::Stim_Packs))
+			{
+				if ((*firebat)->isAttacking() && !(*firebat)->isStimmed() &&
+					(*firebat)->getHitPoints() > 10 &&
+					(*firebat)->getLastCommand().getType() != BWAPI::UnitCommandTypes::Use_Tech)
+				{
+					(*firebat)->useTech(BWAPI::TechTypes::Stim_Packs);
+				}
+			}
+
+			if ((*firebat)->isCompleted() && (*firebat)->getHitPoints() < (*firebat)->getType().maxHitPoints())
+			{
+				injured.push_back((*firebat));
+			}
+
+			firebat++;
 		}
 	}
 }
@@ -1608,7 +1839,7 @@ void insanitybot::Squad::handleNuker(BWAPI::Position target)
 
 void insanitybot::Squad::setNuker()
 {
-	if (nuker || !BWAPI::Broodwar->self()->hasResearched(BWAPI::TechTypes::Personnel_Cloaking))
+	if ((nuker && nuker->exists()) || !BWAPI::Broodwar->self()->hasResearched(BWAPI::TechTypes::Personnel_Cloaking))
 		return;
 		
 
@@ -1834,6 +2065,8 @@ bool insanitybot::Squad::flareTarget(BWAPI::Unit medic, std::map<BWAPI::Unit, st
 	if (medic->getEnergy() < 75 || !BWAPI::Broodwar->self()->hasResearched(BWAPI::TechTypes::Optical_Flare))
 		return false;
 
+	bool limitTargets = (_tanks.size() == 0);
+
 	// Check if the medic already has a target
 	for (std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>>::iterator target = _flareBD.begin(); target != _flareBD.end(); target++)
 	{
@@ -1853,9 +2086,11 @@ bool insanitybot::Squad::flareTarget(BWAPI::Unit medic, std::map<BWAPI::Unit, st
 			continue;
 
 		// Make sure it is a valid target
-		if (!enemy->getType().isBuilding() && enemy->getType().isDetector() && 
+		if (!enemy->getType().isBuilding() && 
+			((enemy->getType().isDetector() && limitTargets) || 
+			(!limitTargets && !enemy->getType().isWorker())) &&
 			!enemy->isIrradiated() && !enemy->isInvincible() && !enemy->isStasised() && 
-			!enemy->isBlind() && notInFlareDB(enemy, _flareBD))
+			!enemy->isBlind() && enemy->isVisible() && notInFlareDB(enemy, _flareBD))
 		{
 			if (medic->getDistance(enemy) < closestDistance)
 			{
