@@ -36,6 +36,7 @@ insanitybot::InformationManager::InformationManager()
 		{
 		case 1:
 			_strategy = "Nuke";
+			break;
 		default:
 			_strategy = "BioDrops";
 			break;
