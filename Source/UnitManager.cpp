@@ -18,6 +18,7 @@ insanitybot::UnitManager::UnitManager()
 	_direction = 0;
 	_nextWaypointIndex = -1;
 	_lastWaypointIndex = -1;
+	_numDrops = 1;
 
 	needDefense = false;
 	loadingDrop = false;
@@ -110,7 +111,7 @@ void UnitManager::update(InformationManager & _infoManager)
 	// Check if we need a defensive squad
 	if (_infoManager.shouldHaveDefenseSquad(false) && !_defensiveSquads.size())
 	{
-		if (_infantrySquads.size())
+		if (_infantrySquads.size() && stratIsBio)
 		{
 			for (std::list<Squad>::iterator & selection = _infantrySquads.begin(); selection != _infantrySquads.end(); selection++)
 			{
@@ -202,7 +203,7 @@ void UnitManager::update(InformationManager & _infoManager)
 				}
 				else
 				{
-					squad->attack(squad->getSquadPosition(), BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y), _flareBD);
+					squad->attack(squad->getSquadPosition(), BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y), _flareBD, _infoManager.getEnemyBases().size());
 				}
 			}
 			else if (target->getPlayer() == BWAPI::Broodwar->enemy())
@@ -213,20 +214,20 @@ void UnitManager::update(InformationManager & _infoManager)
 					if (squad->infantrySquadSize() >= 10)
 					{
 						squad->setDefenseLastNeededFrame(BWAPI::Broodwar->getFrameCount());
-						squad->attack(target->getPosition(), BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y), _flareBD);
+						squad->attack(target->getPosition(), BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y), _flareBD, _infoManager.getEnemyBases().size());
 					}
 					// Else, fall back to a defensive point and hope reinforcements pop soon
 					else
 					{
 						squad->setDefenseLastNeededFrame(BWAPI::Broodwar->getFrameCount());
 						BWAPI::Position defensePoint = BWAPI::Position((BWAPI::Position(_infoManager.getMainPosition()).x + target->getPosition().x) / 2, (BWAPI::Position(_infoManager.getMainPosition()).y + target->getPosition().y) / 2);
-						squad->attack(defensePoint, BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y), _flareBD);
+						squad->attack(defensePoint, BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y), _flareBD, _infoManager.getEnemyBases().size());
 					}
 				}
 				else if (stratIsMech)
 				{
 					// Don't send squads with no anti air to defend air attacks
-					if (target->getType().isFlyer() && squad->numGoliaths() < 1)
+					if (target->getType().isFlyer() && target->getType() != BWAPI::UnitTypes::Protoss_Shuttle && squad->numGoliaths() < 1)
 					{
 						squad->setHaveGathered(false);
 						_mechSquads.push_back(*squad);
@@ -237,14 +238,14 @@ void UnitManager::update(InformationManager & _infoManager)
 					else if (squad->mechSquadSize() >= 7)
 					{
 						squad->setDefenseLastNeededFrame(BWAPI::Broodwar->getFrameCount());
-						squad->attack(target->getPosition(), BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y), _flareBD);
+						squad->attack(target->getPosition(), BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y), _flareBD, _infoManager.getEnemyBases().size());
 					}
 					// Else, fall back to a defensive point and hope reinforcements pop soon
 					else
 					{
 						squad->setDefenseLastNeededFrame(BWAPI::Broodwar->getFrameCount());
 						BWAPI::Position defensePoint = BWAPI::Position((BWAPI::Position(_infoManager.getMainPosition()).x + target->getPosition().x) / 2, (BWAPI::Position(_infoManager.getMainPosition()).y + target->getPosition().y) / 2);
-						squad->attack(defensePoint, BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y), _flareBD);
+						squad->attack(defensePoint, BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, BWAPI::Position(_infoManager.getMainPosition()).y), _flareBD, _infoManager.getEnemyBases().size());
 					}
 				}
 			}
@@ -256,13 +257,17 @@ void UnitManager::update(InformationManager & _infoManager)
 		}
 	}
 
+
+	std::list< BWAPI::TilePosition> empty;
+	empty.clear();
+
 	// Check if we have/need any frontier squads to help defend our outer bases
 	if (_infoManager.numFrontierSquadsNeeded() - numEmptyBases > 0 &&
 		_infoManager.numFrontierSquadsNeeded() - numEmptyBases > _frontierSquads.size() && 
-		(_infantrySquads.size() || _mechSquads.size()))
+		(_infantrySquads.size() || _mechSquads.size()) &&
+		BuildingPlacer::Instance().getDesiredLocation(BWAPI::UnitTypes::Terran_Command_Center, _infoManager, empty) != BWAPI::TilePosition(1,1))
 	{
-		std::list< BWAPI::TilePosition> empty;
-
+		// Currently this will not reassign squads to bases taken elsewhere if the first spot is taken by the enemy
 		BWAPI::TilePosition targetLocation = BuildingPlacer::Instance().getDesiredLocation(BWAPI::UnitTypes::Terran_Command_Center, _infoManager, empty);
 
 		if (targetLocation.x < BWAPI::Broodwar->mapWidth() * .30) // left side of the map
@@ -372,24 +377,24 @@ void UnitManager::update(InformationManager & _infoManager)
 				if (squadIsTooSpread && !squad.isMaxSupply())
 				{
 					bool haveWeGathered = squad.haveGatheredAtForwardPoint();
-					squad.attack(squad.getSquadPosition(), squad.getSquadPosition(), _flareBD);
+					squad.attack(squad.getSquadPosition(), squad.getSquadPosition(), _flareBD, _infoManager.getEnemyBases().size());
 					squad.setHaveGathered(haveWeGathered);
 
 				}
 				else if (_infoManager.getEnemyBases().size())
 				{
 					if (targetIsDefended && !squad.isMaxSupply())
-						squad.attack(forwardPosition, forwardPosition, _flareBD);
+						squad.attack(forwardPosition, forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 					else
-						squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition, _flareBD);
+						squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 				}
 				else if (_infoManager.getEnemyBuildingPositions().size())
 				{
-					squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition, _flareBD);
+					squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 				}
 				else
 				{
-					squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD);
+					squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 				}
 
 				if (squad.numMarines() == 0)
@@ -446,12 +451,17 @@ void UnitManager::update(InformationManager & _infoManager)
 			}
 		}
 	}
+
 	// Mech squads
-	else if (_mechSquads.size())
+	if (_mechSquads.size())
 	{
 		for (auto & squad : _mechSquads)
 		{
 			if ((_infoManager.getAggression() && squad.mechSquadSize() == mechSquadSizeLimit) || 400 - BWAPI::Broodwar->self()->supplyUsed() < 100)
+			{
+				squad.setGoodToAttack(true);
+			}
+			else if (_infoManager.getAggression() && _infoManager.getStrategy() == "FiveFacGol" && squad.numVultures() >= 2 && !_infoManager.getTanks().size())
 			{
 				squad.setGoodToAttack(true);
 			}
@@ -462,15 +472,15 @@ void UnitManager::update(InformationManager & _infoManager)
 
 				if (_infoManager.getEnemyBases().size())
 				{
-					squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition, _flareBD);
+					squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 				}
 				else if (_infoManager.getEnemyBuildingPositions().size())
 				{
-					squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition, _flareBD);
+					squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 				}
 				else
 				{
-					squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD);
+					squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 				}
 
 				if (squad.numTanks() == 0 && 400 - BWAPI::Broodwar->self()->supplyUsed() > 100)
@@ -548,15 +558,15 @@ void UnitManager::update(InformationManager & _infoManager)
 
 					if (_infoManager.getEnemyBases().size())
 					{
-						squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition, _flareBD);
+						squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 					}
 					else if (_infoManager.getEnemyBuildingPositions().size())
 					{
-						squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition, _flareBD);
+						squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 					}
 					else
 					{
-						squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD);
+						squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 					}
 				}
 				else
@@ -584,15 +594,15 @@ void UnitManager::update(InformationManager & _infoManager)
 
 					if (_infoManager.getEnemyBases().size())
 					{
-						squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition, _flareBD);
+						squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 					}
 					else if (_infoManager.getEnemyBuildingPositions().size())
 					{
-						squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition, _flareBD);
+						squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 					}
 					else
 					{
-						squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD);
+						squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 					}
 
 					if (squad.numTanks() == 0 && 400 - BWAPI::Broodwar->self()->supplyUsed() > 100)
@@ -683,23 +693,23 @@ void UnitManager::update(InformationManager & _infoManager)
 							squad.handleNuker(target);
 						}
 
-						squad.attack(forwardPosition, forwardPosition, _flareBD);
+						squad.attack(forwardPosition, forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 					}
 					else
 					{
 						if (squad.getNuker())
 							squad.clearNuker();
 
-						squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition, _flareBD);
+						squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 					}
 				}
 				else if (_infoManager.getEnemyBuildingPositions().size())
 				{
-					squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition, _flareBD);
+					squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 				}
 				else
 				{
-					squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD);
+					squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 				}
 
 				if (squad.numGhosts() == 0)
@@ -772,15 +782,15 @@ void UnitManager::update(InformationManager & _infoManager)
 
 				if (_infoManager.getEnemyBases().size())
 				{
-					squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition, _flareBD);
+					squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 				}
 				else if (_infoManager.getEnemyBuildingPositions().size())
 				{
-					squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition, _flareBD);
+					squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 				}
 				else
 				{
-					squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD);
+					squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 				}
 			}
 			else
@@ -812,7 +822,6 @@ void UnitManager::update(InformationManager & _infoManager)
 	// Dropship
 	if (_infoManager.getDropships().size())
 	{
-		BWAPI::Broodwar->setLocalSpeed(10);
 		handleDropships(_infoManager);
 	}
 	else if (!_infoManager.getDropships().size() && dropping &&
@@ -1515,42 +1524,8 @@ bool insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio, boo
 					}
 				}
 			}
-			else if (_dropSquad.size() && _dropSquad.front().dropSquadSize() < dropSquadSizeLimit &&											// We have a squad
-				(((unassigned->getType() == BWAPI::UnitTypes::Terran_Vulture || unassigned->getType() == BWAPI::UnitTypes::Terran_Goliath) &&	// It has free space
-					_dropSquad.front().numVultures() + _dropSquad.front().numGoliaths() < 2) ||
-				(unassigned->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode && _dropSquad.front().numTanks() < 1)) &&
-				!dropping)																														// We are not in the process of dropping of the units across the map
-			{
-				for (auto & squad : _dropSquad)
-				{
-					if (squad.dropSquadSize() == dropSquadSizeLimit)
-						continue;
-
-					if ((unassigned->getType() == BWAPI::UnitTypes::Terran_Vulture || unassigned->getType() == BWAPI::UnitTypes::Terran_Goliath) && 
-						squad.numVultures() + squad.numGoliaths() >= 2)
-						continue;
-
-					if (unassigned->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode && squad.numTanks() >= 1)
-						continue;
-
-					if (unassigned->getType() == BWAPI::UnitTypes::Terran_Vulture)
-					{
-						squad.addVulture(unassigned);
-						return true;
-					}
-					else if (unassigned->getType() == BWAPI::UnitTypes::Terran_Goliath)
-					{
-						squad.addGoliath(unassigned);
-						return true;
-					}
-					else if (unassigned->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode)
-					{
-						squad.addTank(unassigned);
-						return true;
-					}
-				}
-			}
-			else if (_mechSquads.size())
+			
+			if (_mechSquads.size())
 			{
 				if (_frontierSquads.size())
 				{
@@ -1581,6 +1556,38 @@ bool insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio, boo
 						else if (unassigned->getType() == BWAPI::UnitTypes::Terran_Goliath)
 						{
 							squad.addGoliath(unassigned);
+							return true;
+						}
+					}
+				}
+
+				if (_dropSquad.size() && loadingDrop)
+				{
+					for (auto & squad : _dropSquad)
+					{
+						if (squad.dropSquadSize() == dropSquadSizeLimit) // Is it full?
+							continue;
+
+						if ((unassigned->getType() == BWAPI::UnitTypes::Terran_Vulture || unassigned->getType() == BWAPI::UnitTypes::Terran_Goliath) &&	// What unit type is already full?
+							squad.numVultures() + squad.numGoliaths() >= 2)
+							continue;
+
+						if ((unassigned->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode && squad.numTanks() >= 1))
+							continue;
+
+						if (unassigned->getType() == BWAPI::UnitTypes::Terran_Vulture) // Assign the unit
+						{
+							squad.addVulture(unassigned);
+							return true;
+						}
+						else if (unassigned->getType() == BWAPI::UnitTypes::Terran_Goliath)
+						{
+							squad.addGoliath(unassigned);
+							return true;
+						}
+						else if (unassigned->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode)
+						{
+							squad.addTank(unassigned);
 							return true;
 						}
 					}
@@ -2331,7 +2338,10 @@ void insanitybot::UnitManager::handleDropships(InformationManager & _infoManager
 				dropship.first->unloadAll(dropship.first->getPosition());
 			}
 			else
+			{
+				BWAPI::Broodwar->setLocalSpeed(10);
 				followPerimiter(dropship.first, target); //dropship.first->move(target);
+			}
 		}
 		else if (dropping && !dropship.first->getLoadedUnits().size())
 		{
@@ -2345,9 +2355,6 @@ void insanitybot::UnitManager::handleDropships(InformationManager & _infoManager
 
 			if (numUnloaded == _infoManager.getDropships().size())
 			{
-				_waypoints.clear();
-				_direction = 0;
-
 				if (!_infoManager.closeEnough(dropship.first->getPosition(), BWAPI::Position(_infoManager.getMainPosition()) - BWAPI::Position(100, 100)))
 					dropship.first->move(BWAPI::Position(_infoManager.getMainPosition()) - BWAPI::Position(100, 100));
 
@@ -2361,6 +2368,9 @@ void insanitybot::UnitManager::handleDropships(InformationManager & _infoManager
 
 				if (numDead == _dropSquad.size())
 				{
+					_waypoints.clear();
+					_direction = 0;
+					_numDrops += 1;
 					dropping = false;
 					loadingDrop = true;
 					_infoManager.setDropping(false);
@@ -2467,9 +2477,7 @@ void insanitybot::UnitManager::followPerimiter(BWAPI::Unit airship, BWAPI::Posit
 
 	// Place a loop of points around the edge of the map, to use as waypoints.
 	if (_waypoints.empty())
-	{
 		calculateWaypoints();
-	}
 
 	// To follow the waypoints around the edge of the map, we need these things:
 	// The initial waypoint index, the final waypoint index near the target,
@@ -2500,6 +2508,8 @@ void insanitybot::UnitManager::followPerimiter(BWAPI::Unit airship, BWAPI::Posit
 		int counterclockwise = waypointIndex(_lastWaypointIndex - _nextWaypointIndex);
 		int clockwise = waypointIndex(_nextWaypointIndex - _lastWaypointIndex);
 		_direction = (counterclockwise <= clockwise) ? 1 : -1;
+		if (_numDrops % 2 == 0)
+			_direction = -_direction;
 	}
 
 	// Everything is set. Do the movement.

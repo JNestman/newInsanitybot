@@ -204,7 +204,9 @@ void insanitybotModule::onUnitDestroy(BWAPI::Unit unit)
 	try
 	{
 		if (unit->getType().isMineralField())    theMap.OnMineralDestroyed(unit);
-		else if (unit->getType().isSpecialBuilding()) theMap.OnStaticBuildingDestroyed(unit);
+		else if (unit->getType().isSpecialBuilding() || 
+			(unit->getType().isBuilding() && !unit->getType().isAddon() && unit->getPlayer() != Broodwar->self() && unit->getPlayer() != Broodwar->enemy()))
+			theMap.OnStaticBuildingDestroyed(unit);
 	}
 	catch (const std::exception & e)
 	{

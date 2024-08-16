@@ -226,7 +226,7 @@ void MapImpl::InitializeNeutrals()
 			}
 			else
 			{
-				bwem_assert_throw(n->getType().isSpecialBuilding());
+				//bwem_assert_throw(n->getType().isSpecialBuilding());
 				m_StaticBuildings.push_back(make_unique<StaticBuilding>(n, this));
 			}
 		}
@@ -352,7 +352,11 @@ void MapImpl::ComputeAltitude()
 void MapImpl::ProcessBlockingNeutrals()
 {
 	vector<Neutral *> Candidates;
-	for (auto & s : StaticBuildings())	Candidates.push_back(s.get());
+	for (auto & s : StaticBuildings())
+	{
+		if (!s.get()->Type().isResourceDepot())
+			Candidates.push_back(s.get());
+	}
 	for (auto & m : Minerals())			Candidates.push_back(m.get());
 
 	for (Neutral * pCandidate : Candidates)

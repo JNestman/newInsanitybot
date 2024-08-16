@@ -99,7 +99,7 @@ public:
 	int getRemainingMinerals();
 	BWAPI::Unit getBaseRefinery() { return baseRefinery; }
 	BWAPI::Position getRefineryPos() { return baseRefinery->getPosition(); }
-	void checkAssignment(BWAPI::Unit, std::map<BWAPI::Position, BWEM::Base *>&, BWEM::Base* &);
+	void checkAssignment(BWAPI::Unit, std::map<BWAPI::Position, BWEM::Base *>&, BWEM::Base* &, bool pauseGas);
 	bool miningAssignmentExists(BWAPI::Unit);
 	void removeAssignment(BWAPI::Unit);
 	void updateHishestNumWorkersOnPatch();
