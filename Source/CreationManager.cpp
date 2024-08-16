@@ -117,7 +117,7 @@ void CreationManager::update(InformationManager & _infoManager)
 		takenPositions.clear();
 		for (BWAPI::UnitType unit : _infoManager.getQueue())
 		{
-			// Trying to add supply seperately to the reserved queue without messing up it's separate handling
+			// Trying to add supply seperately to the reserved queue without messing up its separate handling
 			if (unit == BWAPI::UnitTypes::Terran_Supply_Depot)
 				continue;
 
@@ -130,16 +130,17 @@ void CreationManager::update(InformationManager & _infoManager)
 				else
 					targetBuildingLocation = _buildingPlacer.getDesiredLocation(unit, _infoManager, takenPositions);
 
-				takenPositions.push_back(targetBuildingLocation);
-				WorkerManager::Instance().construct(_infoManager.getWorkers(), unit, targetBuildingLocation, _infoManager.getOwnedBases());
+				if (weCanBuild(unit))
+				{
+					takenPositions.push_back(targetBuildingLocation);
+					WorkerManager::Instance().construct(_infoManager.getWorkers(), unit, targetBuildingLocation, _infoManager.getOwnedBases());
+					mineralsLeft = mineralsLeft - unit.mineralPrice();
+					gasLeft = gasLeft - unit.gasPrice();
+				}
 				_constructionQueue.insert(std::pair<BWAPI::UnitType, int>(unit, Broodwar->getFrameCount()));
-				mineralsLeft = mineralsLeft - unit.mineralPrice();
-				gasLeft = gasLeft - unit.gasPrice();
 			}
 			else if (unit == BWAPI::UnitTypes::Terran_Nuclear_Missile && mineralsLeft >= unit.mineralPrice() && gasLeft >= unit.gasPrice())
 			{
-				bool siloFound = false;
-
 				for (auto & addon : _infoManager.getAddons())
 				{
 					if (addon->getType() == BWAPI::UnitTypes::Terran_Nuclear_Silo && addon->isIdle() &&
@@ -179,11 +180,9 @@ void CreationManager::update(InformationManager & _infoManager)
 							if (constructionQueue->first == *it)
 							{
 								_constructionQueue.erase(constructionQueue);
-								break;
+								return;
 							}
 						}
-
-						break;
 					}
 				}
 			}
@@ -205,11 +204,9 @@ void CreationManager::update(InformationManager & _infoManager)
 							if (constructionQueue->first == *it)
 							{
 								_constructionQueue.erase(constructionQueue);
-								break;
+								return;
 							}
 						}
-
-						break;
 					}
 				}
 			}
@@ -230,11 +227,9 @@ void CreationManager::update(InformationManager & _infoManager)
 							if (constructionQueue->first == *it)
 							{
 								_constructionQueue.erase(constructionQueue);
-								break;
+								return;
 							}
 						}
-
-						break;
 					}
 				}
 			}
@@ -255,11 +250,9 @@ void CreationManager::update(InformationManager & _infoManager)
 							if (constructionQueue->first == *it)
 							{
 								_constructionQueue.erase(constructionQueue);
-								break;
+								return;
 							}
 						}
-
-						break;
 					}
 				}
 			}
@@ -279,11 +272,9 @@ void CreationManager::update(InformationManager & _infoManager)
 							if (constructionQueue->first == *it)
 							{
 								_constructionQueue.erase(constructionQueue);
-								break;
+								return;
 							}
 						}
-
-						break;
 					}
 				}
 			}
@@ -395,11 +386,16 @@ void CreationManager::update(InformationManager & _infoManager)
 	}
 	else
 	{
-		for (auto base : _infoManager.getOwnedBases())
+		if (_infoManager.getStrategy() == "FiveFacGol" && !numMachineShops && _infoManager.getVultures().size() < 1)
+			numShopsWanted = 0;
+		else
 		{
-			if (base.second->baseHasRefinery())
+			for (auto base : _infoManager.getOwnedBases())
 			{
-				numShopsWanted++;
+				if (base.second->baseHasRefinery())
+				{
+					numShopsWanted++;
+				}
 			}
 		}
 	}
@@ -412,7 +408,7 @@ void CreationManager::update(InformationManager & _infoManager)
 			continue;
 		}
 
-		if (factory->isCompleted() && _infoManager.isBio(_infoManager.getStrategy()) && !factory->isLifted())
+		if (factory->isCompleted() && _infoManager.isBio(_infoManager.getStrategy()) && !_infoManager.isMech(_infoManager.getInitialStrategy()) && !factory->isLifted())
 		{
 			factory->lift();
 		}
@@ -458,8 +454,11 @@ void CreationManager::update(InformationManager & _infoManager)
 				gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Machine_Shop.gasPrice();
 				numShopsWanted -= 1;
 			}
-			else if (_infoManager.armoryDone() && factory->isIdle() && _infoManager.enemyHasAir() &&
-				_infoManager.getVultures().size() + _infoManager.getGoliaths().size() < _infoManager.getTanks().size() * 2 &&
+			else if (_infoManager.armoryDone() && factory->isIdle() && 
+				((_infoManager.enemyHasAir() || _self->supplyUsed() >= 320) || _infoManager.getStrategy() == "FiveFacGol") &&
+				(_infoManager.getVultures().size() + _infoManager.getGoliaths().size() < _infoManager.getTanks().size() * 2 ||
+				(_infoManager.getStrategy() == "FiveFacGol" && _infoManager.getGoliaths().size() < 12) ||
+				(_self->gas() > 100 && factory->canBuildAddon())) &&
 				mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Goliath.mineralPrice() &&
 				gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Goliath.gasPrice() &&
 				BWAPI::UnitTypes::Terran_Goliath.supplyRequired() <= supplyLeft)
@@ -469,7 +468,9 @@ void CreationManager::update(InformationManager & _infoManager)
 				gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Goliath.gasPrice();
 				supplyLeft -= BWAPI::UnitTypes::Terran_Goliath.supplyRequired();
 			}
-			else if (factory->isIdle() && _infoManager.getVultures().size() + _infoManager.getGoliaths().size() < _infoManager.getTanks().size() * 2 &&
+			else if (factory->isIdle() && 
+				(_infoManager.getVultures().size() + _infoManager.getGoliaths().size() < _infoManager.getTanks().size() * 2 ||
+				(_self->minerals() > 200 && factory->canBuildAddon())) &&
 				mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Vulture.mineralPrice() &&
 				BWAPI::UnitTypes::Terran_Vulture.supplyRequired() <= supplyLeft)
 			{
@@ -518,13 +519,13 @@ void CreationManager::update(InformationManager & _infoManager)
 					gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Battlecruiser.gasPrice();
 					supplyLeft -= BWAPI::UnitTypes::Terran_Battlecruiser.supplyRequired();
 				}
-				if ((_infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Dropship) < 1 || 
-					(_infoManager.getStrategy() == "BioDrops" && _infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Dropship) < 4)) && 
-					(_infoManager.getIslandBases().size() || _infoManager.getOwnedIslandBases().size() || 
-					BWAPI::Broodwar->self()->deadUnitCount(BWAPI::UnitTypes::Terran_Dropship) <= 4) &&
+				if (_infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Dropship) < _infoManager.numLoadedDropsWanted() && 
+					/*(_infoManager.getIslandBases().size() || _infoManager.getOwnedIslandBases().size() || 
+					BWAPI::Broodwar->self()->deadUnitCount(BWAPI::UnitTypes::Terran_Dropship) <= 4) &&*/
 					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Dropship.mineralPrice() &&
 					gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Dropship.gasPrice() &&
-					BWAPI::UnitTypes::Terran_Dropship.supplyRequired() <= supplyLeft)
+					BWAPI::UnitTypes::Terran_Dropship.supplyRequired() <= supplyLeft &&
+					!_infoManager.isAllIn(_infoManager.getStrategy()))
 				{
 					starport->train(BWAPI::UnitTypes::Terran_Dropship);
 					mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Dropship.mineralPrice();
@@ -835,22 +836,23 @@ void CreationManager::update(InformationManager & _infoManager)
 
 	/****************************************************
 	* If we called a worker to build something but it never
-	* happened, cleart it out of the queue and it will be
+	* happened, clear it out of the queue and it will be
 	* built again.
 	*****************************************************/
 	if (!_constructionQueue.empty())
 	{
-		for (std::map<BWAPI::UnitType, int>::iterator it = _constructionQueue.begin(); it != _constructionQueue.end(); ++it)
+		for (std::map<BWAPI::UnitType, int>::iterator it = _constructionQueue.begin(); it != _constructionQueue.end();)
 		{
 			int waitTime = 250;
 
-			//if (it->first.isResourceDepot()) waitTime = 400;
 			if (it->first == BWAPI::UnitTypes::Terran_Missile_Turret) waitTime = 100;
 
 			if (BWAPI::Broodwar->getFrameCount() - it->second > waitTime)
 			{
-				_constructionQueue.erase(it);
+				it = _constructionQueue.erase(it);
 			}
+			else
+				it++;
 		}
 	}
 
@@ -859,9 +861,47 @@ void CreationManager::update(InformationManager & _infoManager)
 		_infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) == 1)
 		return;*/
 
-	int producerSize = _infoManager.getBarracks().size() + (_infoManager.getFactories().size() * 2) + _infoManager.getStarports().size() + _infoManager.getCommandCenters().size();
+	if (_self->supplyUsed() == 16 && _infoManager.getQueue().empty() && _self->minerals() >= 100 &&
+		!_infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) &&
+		_infoManager.isTwoBasePlay(_infoManager.getStrategy()))
+	{
+		_infoManager.getQueue().push_back(BWAPI::UnitTypes::Terran_Supply_Depot);
+		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());
 
-	if (WorkerManager::Instance().checkSupplyConstruction(producerSize, _infoManager.getReservedMinerals()))
+		BWAPI::TilePosition targetSupplyLocation = _buildingPlacer.getSupplyLocation(BWAPI::UnitTypes::Terran_Supply_Depot, _infoManager);
+		WorkerManager::Instance().supplyConstruction(_infoManager.getWorkers(), targetSupplyLocation, _infoManager.getReservedMinerals(), _infoManager.getOwnedBases());
+		WorkerManager::Instance().setLastCheckSupply(BWAPI::Broodwar->getFrameCount());
+	}
+	else if (_self->supplyUsed() >= 28 && _infoManager.getQueue().empty() && _self->minerals() >= 100 &&
+		_infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) < 2 &&
+		_infoManager.isTwoBasePlay(_infoManager.getStrategy()))
+	{
+		_infoManager.getQueue().push_back(BWAPI::UnitTypes::Terran_Supply_Depot);
+		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());
+
+		BWAPI::TilePosition targetSupplyLocation = _buildingPlacer.getSupplyLocation(BWAPI::UnitTypes::Terran_Supply_Depot, _infoManager);
+		WorkerManager::Instance().supplyConstruction(_infoManager.getWorkers(), targetSupplyLocation, _infoManager.getReservedMinerals(), _infoManager.getOwnedBases());
+		WorkerManager::Instance().setLastCheckSupply(BWAPI::Broodwar->getFrameCount());
+	}
+	else if (_self->supplyTotal() < 64 && !_infoManager.getQueue().empty() && WorkerManager::Instance().getLastCheckSupply() + 200 < BWAPI::Broodwar->getFrameCount())
+	{
+		for (std::list<BWAPI::UnitType>::iterator queued = _infoManager.getQueue().begin(); queued != _infoManager.getQueue().end(); queued++)
+		{
+			if (*queued == BWAPI::UnitTypes::Terran_Supply_Depot)
+			{
+				_infoManager.getQueue().erase(queued);
+				_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() - BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());
+				break;
+			}
+		}
+	}
+
+	if (_infoManager.isTwoBasePlay(_infoManager.getStrategy()) && _self->supplyTotal() < 64)
+		return;
+
+	int producerSize = (_infoManager.getBarracks().size() * 3) + (_infoManager.getFactories().size() * 2) + _infoManager.getStarports().size() + (_infoManager.getCommandCenters().size() * 3);
+
+	if (_infoManager.getReservedMinerals() < 500 && WorkerManager::Instance().checkSupplyConstruction(producerSize, _infoManager.getReservedMinerals()))
 	{
 		BWAPI::TilePosition targetSupplyLocation = _buildingPlacer.getSupplyLocation(BWAPI::UnitTypes::Terran_Supply_Depot, _infoManager);
 
@@ -873,14 +913,16 @@ void CreationManager::update(InformationManager & _infoManager)
 	}
 	else if (WorkerManager::Instance().getLastCheckSupply() + 300 < Broodwar->getFrameCount())
 	{
-		for (std::list<BWAPI::UnitType>::iterator queued = _infoManager.getQueue().begin(); queued != _infoManager.getQueue().end(); queued++)
+		for (std::list<BWAPI::UnitType>::iterator queued = _infoManager.getQueue().begin(); queued != _infoManager.getQueue().end();)
 		{
 			if (*queued == BWAPI::UnitTypes::Terran_Supply_Depot)
 			{
-				_infoManager.getQueue().erase(queued);
+				queued = _infoManager.getQueue().erase(queued);
 				_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() - BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());
 				break;
 			}
+			else
+				queued++;
 		}
 	}
 }
@@ -908,6 +950,33 @@ void CreationManager::checkQueue(BWAPI::Unit unit, std::list<BWAPI::UnitType>& q
 			it++;
 		}
 	}
+}
+
+bool CreationManager::weCanBuild(BWAPI::UnitType buildingInQuestion)
+{
+	if		(buildingInQuestion == BWAPI::UnitTypes::Terran_Command_Center ||
+				buildingInQuestion == BWAPI::UnitTypes::Terran_Supply_Depot ||
+				buildingInQuestion == BWAPI::UnitTypes::Terran_Refinery)
+		return true;
+	else if	(buildingInQuestion == BWAPI::UnitTypes::Terran_Missile_Turret)
+		return BWAPI::Broodwar->self()->completedUnitCount(BWAPI::UnitTypes::Terran_Engineering_Bay);
+	else if (buildingInQuestion == BWAPI::UnitTypes::Terran_Barracks ||
+				buildingInQuestion == BWAPI::UnitTypes::Terran_Engineering_Bay)
+		return BWAPI::Broodwar->self()->completedUnitCount(BWAPI::UnitTypes::Terran_Command_Center);
+	else if (buildingInQuestion == BWAPI::UnitTypes::Terran_Factory ||
+				buildingInQuestion == BWAPI::UnitTypes::Terran_Academy ||
+				buildingInQuestion == BWAPI::UnitTypes::Terran_Bunker)
+		return BWAPI::Broodwar->self()->completedUnitCount(BWAPI::UnitTypes::Terran_Barracks);
+	else if (buildingInQuestion == BWAPI::UnitTypes::Terran_Starport)
+		return BWAPI::Broodwar->self()->completedUnitCount(BWAPI::UnitTypes::Terran_Factory);
+	else if (buildingInQuestion == BWAPI::UnitTypes::Terran_Science_Facility)
+		return BWAPI::Broodwar->self()->completedUnitCount(BWAPI::UnitTypes::Terran_Starport);
+	else if (buildingInQuestion == BWAPI::UnitTypes::Terran_Academy)
+		return BWAPI::Broodwar->self()->completedUnitCount(BWAPI::UnitTypes::Terran_Barracks);
+	else if (buildingInQuestion == BWAPI::UnitTypes::Terran_Armory)
+		return BWAPI::Broodwar->self()->completedUnitCount(BWAPI::UnitTypes::Terran_Factory);
+
+	return false;
 }
 
 CreationManager & CreationManager::Instance()

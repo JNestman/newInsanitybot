@@ -115,8 +115,8 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			continue;
 		}
 
-		if (!bunker->isBeingConstructed() && (_infoManager.getOwnedBases().size() < 2 || 
-			(_infoManager.getOwnedBases().size() == 2 && _infoManager.getNumUnfinishedUnit(BWAPI::UnitTypes::Terran_Command_Center))) &&
+		if (!bunker->isBeingConstructed() && 
+			(_infoManager.getOwnedBases().size() == 2 && _infoManager.getNumUnfinishedUnit(BWAPI::UnitTypes::Terran_Command_Center)) &&
 			_infoManager.isTwoBasePlay(_infoManager.getStrategy()))
 		{
 			needRepair = true;
@@ -157,6 +157,8 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			{
 				assignRepairWorkers(_workers, _repairWorkers, bunker, _ownedBases);
 			}
+
+			break;
 		}
 		if (bunker->isAttacking() || bunker->isUnderAttack() || (bunker->getHitPoints() < bunker->getType().maxHitPoints() && !bunker->isBeingConstructed()))
 		{
@@ -197,6 +199,8 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			{
 				assignRepairWorkers(_workers, _repairWorkers, bunker, _ownedBases);
 			}
+
+			break;
 		}
 	}
 
@@ -242,6 +246,8 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 				{
 					assignRepairWorkers(_workers, _repairWorkers, turret, _ownedBases);
 				}
+
+				break;
 			}
 		}
 	}
@@ -288,6 +294,8 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			{
 				assignRepairWorkers(_workers, _repairWorkers, building, _ownedBases);
 			}
+
+			break;
 		}
 	}
 
@@ -451,7 +459,9 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	{
 		if (_mineralClearer && _mineralClearer->exists())
 		{
-			if (closeEnough(_mineralClearer->getPosition(), mineralsNeedClearing.front()->getPosition()) && !_mineralClearer->isGatheringMinerals())
+			if (_mineralClearer->isCarryingMinerals())
+				_mineralClearer->returnCargo();
+			else if (closeEnough(_mineralClearer->getPosition(), mineralsNeedClearing.front()->getPosition()) && !_mineralClearer->isGatheringMinerals())
 				_mineralClearer->rightClick(mineralsNeedClearing.front());
 			else if (!closeEnough(_mineralClearer->getPosition(), mineralsNeedClearing.front()->getPosition()))
 				_mineralClearer->move(mineralsNeedClearing.front()->getPosition());
@@ -491,6 +501,23 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 					if (it->first->getDistance(base.first) < 64)
 					{
 						blockerDetected = true;
+
+						if (BWAPI::Broodwar->getFrameCount() - _infoManager.getLastScanFrame() > 200)
+						{
+							for (auto com : _infoManager.getComsats())
+							{
+								if (!com || !com->exists())
+									continue;
+
+								if (com->getEnergy() > 50)
+								{
+									_infoManager.setLastScanFram(BWAPI::Broodwar->getFrameCount());
+									com->useTech(BWAPI::TechTypes::Scanner_Sweep, base.first);
+									break;
+								}
+							}
+						}
+
 						break;
 					}
 				}
@@ -531,13 +558,18 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			}
 			else if (it->first->getLastCommand().getType() == BWAPI::UnitCommandTypes::Attack_Unit && it->first->getDistance(BWAPI::Position(_infoManager.getMainPosition())) > 800)
 			{
-				workerBase->checkAssignment(it->first, _infoManager.getOwnedBases(), it->second);
+				workerBase->checkAssignment(it->first, _infoManager.getOwnedBases(), it->second, _infoManager.getPauseGas());
+			}
+			else if (_infoManager.getPauseGas() && it->second->isGasWorker(it->first))
+			{
+				workerBase->removeAssignment(it->first);
+				it->first->stop();
 			}
 			else if (it->first->isIdle() || 
-				(workerBase->baseHasRefinery() && !workerBase->getBaseRefinery()->isConstructing() && workerBase->getNumGasWorkers() < 3) ||
+				((workerBase->baseHasRefinery() && !workerBase->getBaseRefinery()->isConstructing() && workerBase->getNumGasWorkers() < 3) && !_infoManager.getPauseGas()) ||
 				(it->first->isGatheringMinerals() && !workerBase->miningAssignmentExists(it->first)))
 			{
-				workerBase->checkAssignment(it->first, _infoManager.getOwnedBases(), it->second);
+				workerBase->checkAssignment(it->first, _infoManager.getOwnedBases(), it->second, _infoManager.getPauseGas());
 			}
 		}
 	}
@@ -549,7 +581,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			if ((it->first->isIdle() || it->first->isAttacking()) || (it->second->baseHasRefinery() && it->second->getNumGasWorkers() < 3) ||
 				(it->first->isGatheringMinerals() && !it->second->miningAssignmentExists(it->first)))
 			{
-				it->second->checkAssignment(it->first, _infoManager.getOwnedIslandBases(), it->second);
+				it->second->checkAssignment(it->first, _infoManager.getOwnedIslandBases(), it->second, _infoManager.getPauseGas());
 			}
 		}
 	}
@@ -563,7 +595,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			continue;
 		}*/
 
-		if (building->getBuildUnit() == NULL || !building->getBuildUnit()->exists())
+		if (!building->getBuildUnit() || !building->getBuildUnit()->exists())
 		{
 			if (_workers.size())
 			{
@@ -847,7 +879,8 @@ void WorkerManager::supplyConstruction(std::map<BWAPI::Unit, BWEM::Base *>& _wor
 			}
 		}
 
-		if (builder->first && builder->first->exists())
+		if (builder->first && builder->first->exists() &&
+			builder != _workers.begin())
 		{
 			// Register an event that draws the target build location
 			Broodwar->registerEvent([targetBuildLocation, supplyProviderType](Game*)
@@ -1166,9 +1199,9 @@ bool insanitybot::WorkerManager::checkSupplyConstruction(int numProducers, int r
 	if (moreSupply >= 4)
 		moreSupply = 4;
 
-	if (BWAPI::Broodwar->self()->supplyUsed() + 8 >= BWAPI::Broodwar->self()->supplyTotal() &&
+	if (BWAPI::Broodwar->self()->supplyUsed() + numProducers + 1 >= BWAPI::Broodwar->self()->supplyTotal() &&
 		_lastCheckSupply + 300 < Broodwar->getFrameCount() &&
-		Broodwar->self()->incompleteUnitCount(BWAPI::UnitTypes::Terran_Supply_Depot) <= 0 + moreSupply &&
+		Broodwar->self()->incompleteUnitCount(BWAPI::UnitTypes::Terran_Supply_Depot) <= moreSupply &&
 		Broodwar->self()->minerals() - reservedMinerals > BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice() &&
 		Broodwar->self()->supplyTotal() < 400)
 	{

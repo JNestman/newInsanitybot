@@ -20,10 +20,13 @@ insanitybot::InformationManager::InformationManager()
 	_enemyHasDtLurker = false;
 	_enemyPool = false;
 	_enemyCyberCore = false;
+	_enemyHydraDen = false;
+	_enemyLair = false;
 	_enemyWorkerNumber = 0;
 	_targetDefended = false;
 	_nukeDotDetected = false;
 	_waitASec = 0;
+	_pauseGas = false;
 
 	std::srand(time(NULL));
 	int _randomChoice = std::rand() % 3;
@@ -36,10 +39,14 @@ insanitybot::InformationManager::InformationManager()
 		{
 		case 1:
 			_strategy = "Nuke";
+			break;
 		default:
-			_strategy = "BioDrops";
+			//_strategy = "BioDrops";
+			_strategy = "FiveFacGol";
+			_attack = true;
 			break;
 		}
+
 	}
 	else if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss)
 	{
@@ -93,6 +100,7 @@ insanitybot::InformationManager::InformationManager()
 
 	// Initialize the build order
 	_buildOrder->initialize(_strategy);
+	_ourInitialStrategy = _strategy;
 }
 
 /****************************************************
@@ -744,7 +752,6 @@ void InformationManager::update()
 	}
 
 	// Setup enemy Main Location
-
 	if (_enemyNatPos == BWAPI::Position(0, 0) && _enemyBases.size())
 	{
 		for (auto startingBaseTile : BWAPI::Broodwar->getStartLocations())
@@ -959,7 +966,9 @@ void InformationManager::update()
 			_construction.push_back(myUnit);
 		}
 		else if (myUnit->getType().isBuilding() && myUnit->isCompleted() &&
-			myUnit->getHitPoints() < myUnit->getType().maxHitPoints() / 2 && !myUnit->isFlying())
+			(myUnit->getHitPoints() < myUnit->getType().maxHitPoints() / 2 || 
+			(myUnit->getType().isResourceDepot() && !myUnit->isUnderAttack() && myUnit->getHitPoints() < myUnit->getType().maxHitPoints())) 
+				&& !myUnit->isFlying())
 		{
 			_injuredBuildings.push_back(myUnit);
 		}
@@ -1405,6 +1414,8 @@ void InformationManager::update()
 	// Scans
 	if (_comsats.size())
 	{
+		bool scanUsed = false;
+
 		for (auto unit : _enemy->getUnits())
 		{
 			if (!unit)
@@ -1417,35 +1428,44 @@ void InformationManager::update()
 					if (!com || !com->exists()) continue;
 
 					if (com->getEnergy() >= BWAPI::TechTypes::Scanner_Sweep.energyCost() && com->getPlayer() == _self &&
-						BWAPI::Broodwar->getFrameCount() - _lastScanFrame > 250)
+						BWAPI::Broodwar->getFrameCount() - _lastScanFrame > 200)
 					{
 						_lastScanFrame = BWAPI::Broodwar->getFrameCount();
 						com->useTech(BWAPI::TechTypes::Scanner_Sweep, unit->getPosition());
+						scanUsed = true;
+						break;
 					}
 				}
+
+				if (scanUsed)
+					break;
 			}
 		}
 
-		for (auto com : _comsats)
+		if (BWAPI::Broodwar->getFrameCount() - _lastScanFrame > 150)
 		{
-			if (!com || !com->exists()) continue;
-
-			if (com->getEnergy() >= 195 && com->getPlayer() == _self)
+			for (auto com : _comsats)
 			{
-				if (!BWAPI::Broodwar->isVisible(_enemyMainPos) && BWAPI::Broodwar->getFrameCount() - _lastScanFrame > 1500)
-				{
-					_lastScanFrame = BWAPI::Broodwar->getFrameCount();
-					com->useTech(BWAPI::TechTypes::Scanner_Sweep, BWAPI::Position(_enemyMainPos));
-					continue;
-				}
-				BWAPI::TilePosition nextUp = _scanRotation.front();
-				if (!BWAPI::Broodwar->isVisible(nextUp.x, nextUp.y))
-				{
-					com->useTech(BWAPI::TechTypes::Scanner_Sweep, BWAPI::Position(nextUp));
-				}
+				if (!com || !com->exists()) continue;
 
-				_scanRotation.push_back(_scanRotation.front());
-				_scanRotation.erase(_scanRotation.begin());
+				if (com->getEnergy() >= 195 && com->getPlayer() == _self)
+				{
+					if (!BWAPI::Broodwar->isVisible(_enemyMainPos) && BWAPI::Broodwar->getFrameCount() - _lastScanFrame > 1500)
+					{
+						_lastScanFrame = BWAPI::Broodwar->getFrameCount();
+						com->useTech(BWAPI::TechTypes::Scanner_Sweep, BWAPI::Position(_enemyMainPos));
+						continue;
+					}
+					BWAPI::TilePosition nextUp = _scanRotation.front();
+					if (!BWAPI::Broodwar->isVisible(nextUp.x, nextUp.y))
+					{
+						com->useTech(BWAPI::TechTypes::Scanner_Sweep, BWAPI::Position(nextUp));
+					}
+
+					_scanRotation.push_back(_scanRotation.front());
+					_scanRotation.erase(_scanRotation.begin());
+					break;
+				}
 			}
 		}
 	}
@@ -1458,6 +1478,9 @@ void InformationManager::update()
 *****************************************************/
 void insanitybot::InformationManager::updateBuildOrder()
 {
+	if (hasInitialBarracks() && !_barracks.size() && _self->deadUnitCount(BWAPI::UnitTypes::Terran_Barracks))
+		setInitialBarracks(false);
+
 	int numEngiBaysFinished = getNumFinishedUnit(BWAPI::UnitTypes::Terran_Engineering_Bay);
 
 	/******************************************************
@@ -1474,6 +1497,10 @@ void insanitybot::InformationManager::updateBuildOrder()
 		else if (_strategy == "MechVT")
 		{
 			_buildOrder->MechVT(*this);
+		}
+		else if (_strategy == "FiveFacGol")
+		{
+			_buildOrder->FiveFacGol(*this);
 		}
 		else if (_strategy == "Nuke")
 		{
@@ -1581,12 +1608,19 @@ void insanitybot::InformationManager::onUnitShow(BWAPI::Unit unit)
 			if (unit->getType() == BWAPI::UnitTypes::Protoss_Dark_Templar ||
 				unit->getType() == BWAPI::UnitTypes::Zerg_Lurker ||
 				unit->getType() == BWAPI::UnitTypes::Zerg_Lurker_Egg ||
+				(_enemyLair && _enemyHydraDen) ||
 				((unit->getType() == BWAPI::UnitTypes::Protoss_Templar_Archives ||
 					unit->getType() == BWAPI::UnitTypes::Protoss_Citadel_of_Adun) && 
 					BWAPI::Broodwar->getFrameCount() < 8000))
 			{
 				_enemyHasDtLurker = true;
 			}
+		}
+
+		if (_strategy == "FiveFacGol" && _attack && !_tanks.size())
+		{
+			if (unit->getType() == BWAPI::UnitTypes::Zerg_Sunken_Colony)
+				_attack = false;
 		}
 
 		if (unit->getType().isBuilding())
@@ -1609,6 +1643,12 @@ void insanitybot::InformationManager::onUnitShow(BWAPI::Unit unit)
 			
 			if (!_enemyCyberCore && unit->getType() == BWAPI::UnitTypes::Protoss_Cybernetics_Core)
 				_enemyCyberCore = true;
+
+			if (!_enemyHydraDen && unit->getType() == BWAPI::UnitTypes::Zerg_Hydralisk_Den)
+				_enemyHydraDen = true;
+
+			if (!_enemyLair && (unit->getType() == BWAPI::UnitTypes::Zerg_Lair || unit->getType() == BWAPI::UnitTypes::Zerg_Hive))
+				_enemyLair = true;
 		}
 
 		if (unit->getType().isResourceDepot())
@@ -1905,19 +1945,18 @@ bool insanitybot::InformationManager::checkForEnemyRush()
 
 			for (auto unit : _enemyUnits)
 			{
+				if (!unit || !unit->exists())
+					continue;
+
 				if (unit->getType() == BWAPI::UnitTypes::Protoss_Nexus)
 					numNexus += 1;
 				else if (unit->getType() == BWAPI::UnitTypes::Protoss_Gateway)
 					numGateways += 1;
 				else if (unit->getType() == BWAPI::UnitTypes::Protoss_Pylon)
 				{
-					if (unit && unit->exists())
+					if (unit->getDistance(_mainChoke) < 1500)
 					{
-						if (unit->getDistance(_mainChoke) < 1500)
-						{
-							BWAPI::Broodwar << "Close Pylon Detected" << std::endl;
-							return true;
-						}
+						return true;
 					}
 				}
 			}
@@ -2149,6 +2188,17 @@ BWAPI::Position InformationManager::getDropLocation(BWAPI::Unit dropship)
 		target = _enemyBases.begin()->first;
 
 	return target;
+}
+
+// Where is the dropship landing?
+int InformationManager::numLoadedDropsWanted()
+{
+	if (isMech(_strategy))
+		return 2;
+	else if (_strategy == "BioDrops")
+		return 4;
+	else
+		return 1;
 }
 
 InformationManager & InformationManager::Instance()

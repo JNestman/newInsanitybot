@@ -34,6 +34,7 @@ namespace insanitybot
 		int _direction;
 		int	_nextWaypointIndex;
 		int	_lastWaypointIndex;
+		int _numDrops;
 
 		bool needDefense;
 		bool loadingDrop;

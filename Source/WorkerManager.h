@@ -35,6 +35,7 @@ namespace insanitybot
 		bool closeEnough(BWAPI::Position location1, BWAPI::Position location2);
 
 		int getLastCheckSupply() { return _lastCheckSupply; };
+		void setLastCheckSupply(int lastCheckSupply) { _lastCheckSupply = lastCheckSupply; };
 
 		static WorkerManager & Instance();
 	};

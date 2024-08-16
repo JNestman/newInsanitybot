@@ -95,7 +95,7 @@ namespace insanitybot
 
 		void addBC(BWAPI::Unit unit)				{ _bcs.insert(std::pair<BWAPI::Unit, int>(unit, 0)); };
 
-		void attack(BWAPI::Position attackPoint, BWAPI::Position forwardGather, std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>>& _flareBD);
+		void attack(BWAPI::Position attackPoint, BWAPI::Position forwardGather, std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>>& _flareBD, int numEnemyBases);
 		void attack(BWAPI::Unit target, std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>>& _flareBD);
 		void gather(BWAPI::Position gatherPoint, std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>>& _flareBD);
 

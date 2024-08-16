@@ -323,11 +323,14 @@ bool BuildingPlacer::freeOnAllSides(BWAPI::Unit building) const
 BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building, InformationManager & _infoManager, std::list<BWAPI::TilePosition> takenPositions)
 {	
 	// Our location we will build at
-	BWAPI::TilePosition desiredLocation;
+	BWAPI::TilePosition desiredLocation = BWAPI::TilePosition(1,1);
 
 	// Check if it is an expansion
 	if (building.isResourceDepot())
 	{
+		if (_infoManager.getPauseGas())
+			_infoManager.setPauseGas(false);
+
 		int shortest = 999999;
 		int length = -1;
 		for (auto base : _infoManager.getOtherBases())
@@ -378,7 +381,7 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 		else
 		{
 			// For some reason, this behavior leads to better bunker placement in the natural.
-			bool bunkerSpotBuildable = BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos())); /*&&
+			bool bunkerSpotBuildable = BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()), true); /*&&
 				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 0)) &&
 				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(0, 1)) &&
 				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 1));*/
@@ -386,7 +389,8 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 			if (bunkerSpotBuildable)
 				desiredLocation = _infoManager.getNatBunkerPos();
 			else
-				desiredLocation = BWAPI::Broodwar->getBuildLocation(BWAPI::UnitTypes::Terran_Bunker, _infoManager.getNatBunkerPos());
+				desiredLocation = getPositionNear(BWAPI::UnitTypes::Terran_Bunker, _infoManager.getNatBunkerPos(), _infoManager.isMech(_infoManager.getStrategy()));
+				//desiredLocation = BWAPI::Broodwar->getBuildLocation(BWAPI::UnitTypes::Terran_Bunker, _infoManager.getNatBunkerPos());
 		}
 
 		return desiredLocation;

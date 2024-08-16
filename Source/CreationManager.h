@@ -26,6 +26,8 @@ namespace insanitybot
 		void update(InformationManager & _infoManager);
 		void checkQueue(BWAPI::Unit unit, std::list<BWAPI::UnitType>& queue, int &reservedMinerals, int &reservedGas);
 
+		bool weCanBuild(BWAPI::UnitType buildingInQuestion);
+
 		static CreationManager & Instance();
 	};
 }

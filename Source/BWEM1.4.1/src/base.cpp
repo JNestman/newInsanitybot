@@ -361,7 +361,7 @@ int Base::getRemainingMinerals()
 	return ammount;
 }
 
-void Base::checkAssignment(BWAPI::Unit worker, std::map<BWAPI::Position, BWEM::Base *>& _ownedBases, BWEM::Base* & assignedBase)
+void Base::checkAssignment(BWAPI::Unit worker, std::map<BWAPI::Position, BWEM::Base *>& _ownedBases, BWEM::Base* & assignedBase, bool pauseGas)
 {
 	if (!worker || !worker->exists())
 		return;
@@ -389,7 +389,7 @@ void Base::checkAssignment(BWAPI::Unit worker, std::map<BWAPI::Position, BWEM::B
 
 	// prioritize assigning gas workers if we don't have too much
 	if (baseHasRefinery() && !baseRefinery->isBeingConstructed() && 
-		3 > getNumGasWorkers())
+		3 > getNumGasWorkers() && !pauseGas)
 	{
 		assignGasWorkers(worker);
 		worker->move(baseRefinery->getPosition());

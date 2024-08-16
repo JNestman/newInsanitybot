@@ -21,10 +21,11 @@ namespace insanitybot
 
 		// Variables
 		std::string											_strategy;
+		std::string											_ourInitialStrategy;
 		std::vector<std::string>							_1BaseStrat {"8RaxDef", "8RaxAgg", "1BaseMech", "TONK", "OneFacAllIn", "BBS", "MechAllIn"};
-		std::vector<std::string>							_2BaseStrat	{"SKTerran", "Mech", "MechVT", "Nuke", "BCMeme", "BioDrops"};
+		std::vector<std::string>							_2BaseStrat	{"SKTerran", "Mech", "MechVT", "Nuke", "BCMeme", "BioDrops", "FiveFacGol"};
 		std::vector<std::string>							_bio		{"8RaxDef", "8RaxAgg", "SKTerran", "Nuke", "BioDrops"};
-		std::vector<std::string>							_mech		{"Mech", "MechVT", "1BaseMech", "TONK", "BCMeme"};
+		std::vector<std::string>							_mech		{"Mech", "MechVT", "1BaseMech", "TONK", "BCMeme", "FiveFacGol"};
 		std::vector<std::string>							_airStrat	{"BCMeme"};
 		std::vector<std::string>							_allIn		{ "OneFacAllIn", "BBS", "MechAllIn" };
 
@@ -52,6 +53,8 @@ namespace insanitybot
 		BWAPI::Unitset										_enemyUnits;
 		bool												_enemyPool;
 		bool												_enemyCyberCore;
+		bool												_enemyHydraDen;
+		bool												_enemyLair;
 		int													_enemyWorkerNumber;
 
 		std::list<BWAPI::Unit>								_neutralBuildings;
@@ -127,6 +130,8 @@ namespace insanitybot
 		bool												_nukeDotDetected;
 		int													_waitASec;
 
+		bool												_pauseGas;
+
 	public:
 		InformationManager();
 		~InformationManager() { delete _buildOrder; };
@@ -154,6 +159,7 @@ namespace insanitybot
 
 		//Getters
 		std::string getStrategy()										{ return _strategy; };
+		std::string getInitialStrategy()								{ return _ourInitialStrategy; };
 
 		BWAPI::Race getEnemyRace()										{ return _enemyRace; };
 
@@ -243,7 +249,7 @@ namespace insanitybot
 
 		bool shouldIslandExpand()					{ return false; };//return _islandExpand; }; // TODO: Work out drops/island expansion hiccups
 
-		int numLoadedDropsWanted()					{ return ((_strategy == "BioDrops") ? 4 : 1); }
+		int numLoadedDropsWanted(); 
 		bool getDropping()							{ return _dropping; };
 		void setDropping(bool dropping)				{ _dropping = dropping; };
 
@@ -257,6 +263,10 @@ namespace insanitybot
 		bool covertOpsDone()						{ return getNumFinishedUnit(BWAPI::UnitTypes::Terran_Covert_Ops); };
 
 		bool targetIsDefended();
+
+		bool getPauseGas()							{ return _pauseGas; };
+
+		int getLastScanFrame()						{ return _lastScanFrame; };
 
 		BWAPI::Position getAirGatherLocation();
 		BWAPI::Position getDropLocation(BWAPI::Unit dropship);
@@ -275,6 +285,10 @@ namespace insanitybot
 
 		void setIslandExpand(bool expand)			{ _islandExpand = expand; };
 		void setIslandBuilder(BWAPI::Unit unit)		{ _islandBuilder = unit; };
+
+		void setLastScanFram(int frame)				{ _lastScanFrame = frame; };
+
+		void setPauseGas(bool pause)				{ _pauseGas = pause; };
 
 		int numWorkersWanted();
 		std::list<BWAPI::UnitType>& getQueue() { return _queue; };

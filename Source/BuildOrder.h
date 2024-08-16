@@ -26,6 +26,7 @@ namespace insanitybot
 		void BioDrops(InformationManager & _infoManager);
 		void Mech(InformationManager & _infoManager);
 		void MechVT(InformationManager & _infoManager);
+		void FiveFacGol(InformationManager & _infoManager);
 		void BCMeme(InformationManager & _infoManager);
 		void EightRaxDef(InformationManager & _infoManager);
 		void OneBaseMech(InformationManager & _infoManager);
