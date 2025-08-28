@@ -347,18 +347,18 @@ int Base::getNumGasWorkers()
 
 int Base::getRemainingMinerals()
 {
-	int ammount = 0;
+	int amount = 0;
 
 	if (m_Minerals.empty())
-		return ammount;
+		return amount;
 
 	for (auto mineral : m_Minerals)
 	{
-		if (mineral)
-			ammount += mineral->Amount();
+		if (mineral && mineral->Unit() && mineral->Unit()->exists())
+			amount += mineral->Amount();
 	}
 
-	return ammount;
+	return amount;
 }
 
 void Base::checkAssignment(BWAPI::Unit worker, std::map<BWAPI::Position, BWEM::Base *>& _ownedBases, BWEM::Base* & assignedBase, bool pauseGas)

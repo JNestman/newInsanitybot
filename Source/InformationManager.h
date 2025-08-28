@@ -6,11 +6,13 @@
 namespace insanitybot
 {
 	class BuildOrder;
+	class ReadWrite;
 
 	class InformationManager
 	{
 
 		BuildOrder											*_buildOrder;
+		ReadWrite											*_readWrite;
 
 		// Deletion functions
 		void checkForDeadList(std::list<BWAPI::Unit>& listToDeleteFrom);
@@ -23,11 +25,13 @@ namespace insanitybot
 		std::string											_strategy;
 		std::string											_ourInitialStrategy;
 		std::vector<std::string>							_1BaseStrat {"8RaxDef", "8RaxAgg", "1BaseMech", "TONK", "OneFacAllIn", "BBS", "MechAllIn"};
-		std::vector<std::string>							_2BaseStrat	{"SKTerran", "Mech", "MechVT", "Nuke", "BCMeme", "BioDrops", "FiveFacGol"};
+		std::vector<std::string>							_2BaseStrat	{"SKTerran", "Mech", "MechVT", "Nuke", "BCMeme", "BioDrops", "FiveFacGol", "GreedMech"};
 		std::vector<std::string>							_bio		{"8RaxDef", "8RaxAgg", "SKTerran", "Nuke", "BioDrops"};
-		std::vector<std::string>							_mech		{"Mech", "MechVT", "1BaseMech", "TONK", "BCMeme", "FiveFacGol"};
+		std::vector<std::string>							_mech		{"Mech", "MechVT", "1BaseMech", "TONK", "BCMeme", "FiveFacGol", "GreedMech"};
 		std::vector<std::string>							_airStrat	{"BCMeme"};
 		std::vector<std::string>							_allIn		{ "OneFacAllIn", "BBS", "MechAllIn" };
+
+		std::vector<std::string>							_smallMainMaps{ "731138b5b844a4a0b4a4bb4e495969fd6659414c" };
 
 		std::list<BWAPI::UnitType>							_queue;
 
@@ -60,6 +64,7 @@ namespace insanitybot
 		std::list<BWAPI::Unit>								_neutralBuildings;
 
 		BWAPI::TilePosition									_mainPosition;
+		BWAPI::Position										_mainNotTilePos;
 
 		BWAPI::Unitset										_smallMinerals;
 		BWAPI::Unitset										_islandSmallMinerals;
@@ -160,6 +165,8 @@ namespace insanitybot
 		//Getters
 		std::string getStrategy()										{ return _strategy; };
 		std::string getInitialStrategy()								{ return _ourInitialStrategy; };
+
+		std::vector<std::string> getSmallMainMaps()						{ return _smallMainMaps; };
 
 		BWAPI::Race getEnemyRace()										{ return _enemyRace; };
 
@@ -272,7 +279,7 @@ namespace insanitybot
 		BWAPI::Position getDropLocation(BWAPI::Unit dropship);
 
 		//Setters
-		std::string setStrategy(std::string strat)	{ _strategy = strat; }
+		void setStrategy(std::string strat)	{ _strategy = strat; }
 
 		void setReservedMinerals(int _reserve)		{ _reservedMinerals = _reserve; }
 		void setReservedGas(int _reserve)			{ _reservedGas = _reserve; }
@@ -294,6 +301,7 @@ namespace insanitybot
 		std::list<BWAPI::UnitType>& getQueue() { return _queue; };
 		int queueSize() { return _queue.size(); };
 
+		void onGameEnd(bool isWinner);
 
 		static InformationManager & Instance();
 	};

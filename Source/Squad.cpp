@@ -37,6 +37,10 @@ insanitybot::Squad::Squad(BWAPI::Unit unit, bool isAllIn)
 	{
 		_medics.push_back(unit);
 	}
+	else if (unit->getType() == BWAPI::UnitTypes::Terran_Firebat)
+	{
+		_firebats.push_back(unit);
+	}
 	else if (unit->getType() == BWAPI::UnitTypes::Terran_Ghost)
 	{
 		_ghosts.push_back(unit);
@@ -1356,6 +1360,11 @@ void insanitybot::Squad::dropIdle()
 			}
 		}
 	}
+
+	if (!dropship && !dropship->exists())
+	{
+		dropship = NULL;
+	}
 }
 
 /***************************************************************
@@ -2107,7 +2116,7 @@ bool insanitybot::Squad::shouldPlantMine(BWAPI::Unit vulture)
 	BWAPI::Unitset nearbyFriendlyStructures = BWAPI::Broodwar->getUnitsInRadius(vulture->getPosition(), tankMineOffset, 
 																				BWAPI::Filter::IsBuilding && BWAPI::Filter::IsOwned && !BWAPI::Filter::IsFlyingBuilding);
 
-	if (rand() % 201 == 0 && vulture->isMoving() && vulture->getSpiderMineCount() > 0 && nearbyFriendlyStructures.size() == 0)
+	if (rand() % 100 == 0 && vulture->isMoving() && vulture->getSpiderMineCount() > 0 && nearbyFriendlyStructures.size() == 0)
 	{
 		return true;
 	}

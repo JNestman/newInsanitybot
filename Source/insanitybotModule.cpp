@@ -19,9 +19,6 @@ void insanitybotModule::onStart()
 {
 	try
 	{
-		// Hello World!
-		Broodwar->sendText("Hello world!");
-
 		// Print the map name.
 		// BWAPI returns std::string when retrieving a string, don't forget to add .c_str() when printing!
 		Broodwar << "The map is " << Broodwar->mapName() << "!" << std::endl;
@@ -54,19 +51,12 @@ void insanitybotModule::onStart()
 		}
 		else // if this is not a replay
 		{
-			// Retrieve you and your enemy's races. enemy() will just return the first enemy.
-			// If you wish to deal with multiple enemies then you must use enemies().
-			if ( Broodwar->enemy() ) // First make sure there is an enemy
-				Broodwar << "The matchup is " << Broodwar->self()->getRace() << " vs " << Broodwar->enemy()->getRace() << std::endl;
-
-			Broodwar << "Map initialization..." << std::endl;
-
 			theMap.Initialize();
 			theMap.EnableAutomaticPathAnalysis();
 			bool startingLocationsOK = theMap.FindBasesForStartingLocations();
 			assert(startingLocationsOK);
 
-			Broodwar << "glhf" << std::endl;
+			//Broodwar->sendText("glhf");
 
 			Broodwar->setLocalSpeed(0);
 
@@ -84,10 +74,7 @@ void insanitybotModule::onStart()
 void insanitybotModule::onEnd(bool isWinner)
 {
   // Called when the game ends
-  if ( isWinner )
-  {
-    // Log your win here!
-  }
+	commander.onGameEnd(isWinner);
 }
 
 void insanitybotModule::onFrame()

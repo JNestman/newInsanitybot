@@ -1,6 +1,7 @@
 #include "InformationManager.h"
 #include <time.h>
 #include "BuildOrder.h"
+#include "ReadWrite.h"
 
 
 namespace { auto & theMap = BWEM::Map::Instance(); }
@@ -11,6 +12,7 @@ insanitybot::InformationManager::InformationManager()
 	:	_self(BWAPI::Broodwar->self())
 	, _enemy(BWAPI::Broodwar->enemy())
 	, _buildOrder(new BuildOrder())
+	, _readWrite(new ReadWrite())
 {
 	_attack = false;
 	_islandExpand = false;
@@ -28,77 +30,27 @@ insanitybot::InformationManager::InformationManager()
 	_waitASec = 0;
 	_pauseGas = false;
 
-	std::srand(time(NULL));
-	int _randomChoice = std::rand() % 3;
+	BWAPI::Position main;
 
-	BWAPI::Broodwar << "Choice: " << _randomChoice << std::endl;
-
-	if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Zerg)
+	// Add our initial command center's location as our main location
+	for (auto &u : BWAPI::Broodwar->self()->getUnits())
 	{
-		switch (_randomChoice)
-		{
-		case 1:
-			_strategy = "Nuke";
-			break;
-		default:
-			//_strategy = "BioDrops";
-			_strategy = "FiveFacGol";
-			_attack = true;
-			break;
-		}
+		if (!u || !u->exists())
+			continue;
 
-	}
-	else if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Protoss)
-	{
-		switch (_randomChoice)
+		if (u->getType().isResourceDepot())
 		{
-		case 1:
-			_strategy = "OneFacAllIn";
-			break;
-		default:
-			_strategy = "Mech";
-			break;
-		}
-
-		if (_enemy->getName() == "Tomas Vajda" ||
-			_enemy->getName() == "Stardust")
-		{
-			_strategy = "OneFacAllIn";
-		}
-	}
-	else if (BWAPI::Broodwar->enemy()->getRace() == BWAPI::Races::Terran)
-	{
-		switch (_randomChoice)
-		{
-		case 1:
-			_strategy = "MechVT";
-			break;
-		case 2:
-			_strategy = "MechAllIn";
-			break;
-		default:
-			_strategy = "Mech";
-			break;
-		}
-		//_strategy = "MechVT";
-
-		//_strategy = "BCMeme";
-
-	}
-	else // Random
-	{
-		switch (_randomChoice)
-		{
-		case 1:
-			_strategy = "OneFacAllIn";
-			break;
-		default:
-			_strategy = "Mech";
+			//BWAPI::Broodwar << "Main Position at: " << u->getTilePosition() << std::endl;
+			main = u->getPosition();
+			_mainNotTilePos = u->getPosition();
+			setMainPosition(u->getTilePosition());
 			break;
 		}
 	}
-
+	
 	// Initialize the build order
+	_readWrite->initialize();
+	_strategy = _readWrite->getChosenBuildOrder(_mainNotTilePos);
 	_buildOrder->initialize(_strategy);
 	_ourInitialStrategy = _strategy;
 }
@@ -129,14 +81,13 @@ void InformationManager::initialize()
 	// Add our initial command center's location as our main location
 	for (auto &u : BWAPI::Broodwar->self()->getUnits())
 	{
-		if (!u)
+		if (!u || !u->exists())
 			continue;
 
 		if (u->getType().isResourceDepot())
 		{
 			//BWAPI::Broodwar << "Main Position at: " << u->getTilePosition() << std::endl;
 			main = u->getPosition();
-			setMainPosition(u->getTilePosition());
 			break;
 		}
 	}
@@ -304,6 +255,19 @@ void InformationManager::initialize()
 		if (_mainPosition.y > BWAPI::Broodwar->mapHeight() * .80 && _mainPosition.x > BWAPI::Broodwar->mapWidth() * .30) // Bottom Right
 			_naturalChoke = BWAPI::Position(BWAPI::Position(_natural->Location()).x - 50, BWAPI::Position(_natural->Location()).y - 150);
 	}
+	else if (BWAPI::Broodwar->mapHash() == "dbd844012e678b23ca8ef21b3b62008589a554b5") // (3)NeoSylphid_2.0
+	{
+		if (_mainPosition.y > BWAPI::Broodwar->mapHeight() * .70 && _mainPosition.x > BWAPI::Broodwar->mapWidth() * .50) // Bottom Right
+			_naturalChoke = BWAPI::Position(BWAPI::Position(_natural->Location()).x, BWAPI::Position(_natural->Location()).y - 100);
+		else if (_mainPosition.y < BWAPI::Broodwar->mapHeight() * .30) // Top
+			_naturalChoke = BWAPI::Position(BWAPI::Position(_natural->Location()).x, BWAPI::Position(_natural->Location()).y + 200);
+	}
+	else if (BWAPI::Broodwar->mapHash() == "ad870839912421dc3b4fd736a954bf770693ba9a") // (4)Polypoid_1.65
+	{
+		if (_mainPosition.y > BWAPI::Broodwar->mapHeight() * .70 && _mainPosition.x > BWAPI::Broodwar->mapWidth() * .50) // Bottom Right
+			_naturalChoke = BWAPI::Position(BWAPI::Position(_natural->Location()).x, BWAPI::Position(_natural->Location()).y - 150);
+		
+	}
 
 
 	shortest = 999999;
@@ -387,6 +351,13 @@ void InformationManager::initialize()
 			_mainBunkerPos = _mainBunkerPos - BWAPI::TilePosition(10, 0);
 		else
 			_mainBunkerPos = _mainBunkerPos + BWAPI::TilePosition(10, 0);
+	}
+	else if (BWAPI::Broodwar->mapHash() == "614d0048c6cc9dcf08da1409462f22f2ac4f5a0b") // PolarisRhapsody_1.0
+	{
+		if (_mainPosition.y > BWAPI::Broodwar->mapHeight() * .50) // Bottom
+			_mainBunkerPos = _mainBunkerPos + BWAPI::TilePosition(0, -6);
+		else // top
+			_mainBunkerPos = _mainBunkerPos + BWAPI::TilePosition(2, 4);
 	}
 	//_mainBunkerPos = BWAPI::TilePosition(getMainChokePos());
 
@@ -518,7 +489,7 @@ void InformationManager::checkForDeadTurrets(std::list<BWAPI::Unit>& listToDelet
 }
 
 /****************************************************
-* Check our queue for a given unit to be made
+* Check our queue for a given unit to be made and remove it
 *****************************************************/
 void insanitybot::InformationManager::checkQueue(BWAPI::Unit myUnit)
 {
@@ -713,7 +684,8 @@ void InformationManager::update()
 	if (!getAggression() && isBio(_strategy) && 
 		((_marines.size() > 30 && _strategy != "BioDrops") ||
 		(_strategy == "BioDrops" && _dropships.size() && 
-		_dropships.begin()->first->getDistance(getDropLocation(_dropships.begin()->first)) < 300)))
+		(_dropships.begin()->first->getDistance(getDropLocation(_dropships.begin()->first)) < 300 ||
+			_marines.size() > 40))))
 	{
 		setAggression(true);
 	}
@@ -725,7 +697,7 @@ void InformationManager::update()
 	{
 		setAggression(true);
 	}
-	else if (!getAggression() && isAllIn(_strategy) && (_tanks.size() > 1 || (_strategy == "MechAllIn" && _vultures.size() > 10)))
+	else if (!getAggression() && isAllIn(_strategy) && (_tanks.size() > 1 || (_strategy == "MechAllIn" && _vultures.size() > 6)))
 	{
 		setAggression(true);
 	}
@@ -878,7 +850,7 @@ void InformationManager::update()
 		_enemyRushing = checkForEnemyRush();
 	}
 
-	if (_enemyRushing && isTwoBasePlay(_strategy))
+	if (_enemyRushing && (isTwoBasePlay(_strategy) && getOwnedBases().size() < 2) && _buildOrder->getInitialStrategy() != "MechAllIn")
 	{
 		if (_enemyRace == BWAPI::Races::Zerg)
 		{
@@ -1494,6 +1466,10 @@ void insanitybot::InformationManager::updateBuildOrder()
 		{
 			_buildOrder->Mech(*this);
 		}
+		else if (_strategy == "GreedMech")
+		{
+			_buildOrder->GreedMech(*this);
+		}
 		else if (_strategy == "MechVT")
 		{
 			_buildOrder->MechVT(*this);
@@ -1853,6 +1829,11 @@ bool insanitybot::InformationManager::isExpanding()
 // A check to see if our main base needs a defensive squad
 bool insanitybot::InformationManager::shouldHaveDefenseSquad(bool worker)
 {
+	int defenceRadius = 800;
+
+	if (std::find(_smallMainMaps.begin(), _smallMainMaps.end(), BWAPI::Broodwar->mapHash()) != _smallMainMaps.end())
+		defenceRadius = 500;
+
 	for (auto unit : _enemy->getUnits())
 	{
 		if (!unit)
@@ -2199,6 +2180,11 @@ int InformationManager::numLoadedDropsWanted()
 		return 4;
 	else
 		return 1;
+}
+
+void insanitybot::InformationManager::onGameEnd(bool isWinner)
+{
+	_readWrite->writeCompactMatchData(BWAPI::Broodwar->enemy()->getName(), BWAPI::Broodwar->mapFileName(), _mainNotTilePos, getInitialStrategy(), isWinner);
 }
 
 InformationManager & InformationManager::Instance()

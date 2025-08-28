@@ -348,7 +348,7 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 				(abs(BWAPI::Position(BWAPI::TilePosition(BWAPI::Broodwar->mapWidth() / 2, BWAPI::Broodwar->mapHeight() / 2)).x - base.first.x) <= 64 &&
 					abs(BWAPI::Position(BWAPI::TilePosition(BWAPI::Broodwar->mapWidth() / 2, BWAPI::Broodwar->mapHeight() / 2)).y - base.first.y) <= 64)) continue;
 
-			if (base.second->getRemainingMinerals() < 600) continue;
+			//if (BWAPI::Broodwar->isVisible(base.second->Location()) && base.second->getRemainingMinerals() < 600) continue;
 
 			theMap.GetPath(BWAPI::Position(base.first), BWAPI::Position(_infoManager.getMainPosition()), &length);
 			
@@ -495,6 +495,20 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 		// Stack factories
 		else if (unit->getType() == BWAPI::UnitTypes::Terran_Factory && building == BWAPI::UnitTypes::Terran_Factory)
 		{
+			// Too many factories in the main leads to trapped units. Going to try to build in our third after the fifth factory
+			if (_infoManager.getOwnedBases().size() > 2 && _infoManager.getFactories().size() >= 5)
+			{
+				for (auto base : _infoManager.getOwnedBases())
+				{
+					if (!_infoManager.closeEnough(base.first, BWAPI::Position(_infoManager.getMainPosition())) &&
+						!_infoManager.closeEnough(base.first, BWAPI::Position(_infoManager.getNatPosition())))
+					{
+						return getPositionNear(unit->getType(), BWAPI::TilePosition(base.first), true);
+					}
+
+				}
+			}
+
 			// Above.
 			tile = unit->getTilePosition() + BWAPI::TilePosition(0, -building.tileHeight());
 			bool taken = false;
@@ -611,6 +625,14 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 	{
 		BWAPI::Position halfwayPoint = BWAPI::Position((BWAPI::Position(_infoManager.getMainPosition()).x + _infoManager.getMainChokePos().x) / 2, (BWAPI::Position(_infoManager.getMainPosition()).y + _infoManager.getMainChokePos().y) / 2);
 		desiredLocation = BWAPI::TilePosition(halfwayPoint);
+
+		if (BWAPI::Broodwar->mapHash() == "614d0048c6cc9dcf08da1409462f22f2ac4f5a0b") // PolarisRhapsody_1.0
+		{
+			if (_infoManager.getMainPosition().y > BWAPI::Broodwar->mapHeight() * .50) // Bottom
+				desiredLocation = _infoManager.getMainPosition() + BWAPI::TilePosition(0, -10);
+			else
+				desiredLocation = _infoManager.getMainPosition() + BWAPI::TilePosition(0, 10);
+		}
 	}
 	else if (building.tileSize() == BWAPI::UnitTypes::Terran_Supply_Depot.tileSize())
 	{
@@ -779,6 +801,22 @@ BWAPI::TilePosition BuildingPlacer::getSupplyLocation(BWAPI::UnitType building, 
 				edge += BWAPI::Position(0, -400);
 			}
 		}
+		else if (BWAPI::Broodwar->mapHash() == "3cf2b26da33b8e798b0e359cd621569b5725124d") // Eclipse
+		{
+			//BWAPI::Broodwar << "Correct Map Hash" << std::endl;
+			edge = BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x - 100, BWAPI::Position(_infoManager.getMainPosition()).y - 100);
+		}
+		else if (BWAPI::Broodwar->mapHash() == "731138b5b844a4a0b4a4bb4e495969fd6659414c") // Powerbond
+		{
+			edge = BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x - 200, BWAPI::Position(_infoManager.getMainPosition()).y);
+		}
+		else if (BWAPI::Broodwar->mapHash() == "90b6f33ba4f24a67ee875c18cc4a52ee490ce26a") // (4)VermeerSE_2.1
+		{
+			if (_infoManager.getMainPosition().x < BWAPI::Broodwar->mapWidth() * .5) // Bottom left
+			{
+				edge = BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x - 100, BWAPI::Position(_infoManager.getMainPosition()).y - 100);
+			}
+		}
 
 		desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(edge));
 		bottom = true;
@@ -851,24 +889,6 @@ BWAPI::TilePosition BuildingPlacer::getSupplyLocation(BWAPI::UnitType building, 
 			{
 				return tile;
 			}
-			/*if (right)
-			{
-				if (canBuildWithSpace(tile, building, 0) &&
-					freeOnLeft(tile, building))
-				{
-					return tile;
-				}
-			}
-			else
-			{
-				if (canBuildWithSpace(tile, building, 0) &&
-					freeOnTop(tile, building) &&
-					freeOnLeft(tile, building) &&
-					freeOnBottom(tile, building))
-				{
-					return tile;
-				}
-			}*/
 
 			// Right.
 			tile = unit->getTilePosition() + BWAPI::TilePosition(building.tileWidth(), 0);
@@ -877,24 +897,6 @@ BWAPI::TilePosition BuildingPlacer::getSupplyLocation(BWAPI::UnitType building, 
 			{
 				return tile;
 			}
-			/*if (left)
-			{
-				if (canBuildWithSpace(tile, building, 0) &&
-					freeOnRight(tile, building))
-				{
-					return tile;
-				}
-			}
-			else
-			{
-				if (canBuildWithSpace(tile, building, 0) &&
-					freeOnBottom(tile, building) &&
-					freeOnRight(tile, building) &&
-					freeOnTop(tile, building))
-				{
-					return tile;
-				}
-			}*/
 
 			// Above.
 			tile = unit->getTilePosition() + BWAPI::TilePosition(0, -building.tileHeight());
@@ -903,24 +905,6 @@ BWAPI::TilePosition BuildingPlacer::getSupplyLocation(BWAPI::UnitType building, 
 			{
 				return tile;
 			}
-			/*if (bottom)
-			{
-				if (canBuildWithSpace(tile, building, 0) &&
-					freeOnTop(tile, building))
-				{
-					return tile;
-				}
-			}
-			else
-			{
-				if (canBuildWithSpace(tile, building, 0) &&
-					freeOnTop(tile, building) &&
-					freeOnLeft(tile, building) &&
-					freeOnRight(tile, building))
-				{
-					return tile;
-				}
-			}*/
 
 			// Below.
 			tile = unit->getTilePosition() + BWAPI::TilePosition(0, unit->getType().tileHeight());
@@ -929,24 +913,6 @@ BWAPI::TilePosition BuildingPlacer::getSupplyLocation(BWAPI::UnitType building, 
 			{
 				return tile;
 			}
-			/*if (top)
-			{
-				if (canBuildWithSpace(tile, building, 0) &&
-					freeOnBottom(tile, building))
-				{
-					return tile;
-				}
-			}
-			else
-			{
-				if (canBuildWithSpace(tile, building, 0) &&
-					freeOnBottom(tile, building) &&
-					freeOnLeft(tile, building) &&
-					freeOnRight(tile, building))
-				{
-					return tile;
-				}
-			}*/
 		}
 	}
 
@@ -1035,7 +1001,7 @@ bool insanitybot::BuildingPlacer::validTurretLocation(BWAPI::TilePosition target
 	return false;
 }
 
-BWAPI::TilePosition insanitybot::BuildingPlacer::getPositionNear(BWAPI::UnitType building, BWAPI::TilePosition beginingPoint, bool isMech)
+BWAPI::TilePosition insanitybot::BuildingPlacer::getPositionNear(BWAPI::UnitType building, BWAPI::TilePosition beginingPoint, bool isMech, bool secondPass)
 {
 	//returns a valid build location near the specified tile position.
 	//searches outward in a spiral.
@@ -1107,8 +1073,8 @@ BWAPI::TilePosition insanitybot::BuildingPlacer::getPositionNear(BWAPI::UnitType
 		//Spiral out. Keep going.
 	}
 
-	if (isMech)
-		return getPositionNear(building, beginingPoint, false);
+	if (isMech && !secondPass)
+		return getPositionNear(building, beginingPoint, false, true);
 	else
 		return BWAPI::Broodwar->getBuildLocation(building, beginingPoint);
 	//return getPositionNear(building, beginingPoint, "Bio");
