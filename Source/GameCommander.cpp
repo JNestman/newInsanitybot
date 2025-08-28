@@ -48,6 +48,11 @@ void insanitybot::GameCommander::onUnitComplete(BWAPI::Unit unit)
 	//_informationManager.onUnitComplete(unit);
 }
 
+void insanitybot::GameCommander::onGameEnd(bool isWinner)
+{
+	_informationManager.onGameEnd(isWinner);
+}
+
 void GameCommander::infoText()
 {
 	Broodwar->drawTextScreen(200, 20, "Workers Wanted: %d", _informationManager.numWorkersWanted());
@@ -65,8 +70,8 @@ void GameCommander::infoText()
 	Broodwar->drawTextScreen(50, 60, "isExpanding: %d", _informationManager.isExpanding());
 	Broodwar->drawTextScreen(50, 70, "targetIsDefended: %d", _informationManager.targetIsDefended());
 	//Broodwar->drawTextScreen(50, 80, "numFrontierSquadsWanted: %d", _informationManager.numFrontierSquadsNeeded());
-
 	BWAPI::Broodwar->drawTextScreen(50, 80, "numDropsWanted: %d", _informationManager.numLoadedDropsWanted());
+	BWAPI::Broodwar->drawTextScreen(50, 130, "mapHash: %s", BWAPI::Broodwar->mapHash());
 
 	Broodwar->drawCircleMap(_informationManager.getMainChokePos(), 10, BWAPI::Colors::Orange);
 	Broodwar->drawCircleMap(_informationManager.getNaturalChokePos(), 10, BWAPI::Colors::Red);

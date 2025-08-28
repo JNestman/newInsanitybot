@@ -85,7 +85,9 @@
     <ClCompile Include="Source\BuildOrder.cpp">
       <Filter>Information\Build Order</Filter>
     </ClCompile>
-    <ClCompile Include="BUILDORDER.CPP" />
+    <ClCompile Include="Source\ReadWrite.cpp">
+      <Filter>Information\Build Order</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\BWEM1.4.1\src\area.h">
@@ -170,6 +172,9 @@
       <Filter>Units\Squad</Filter>
     </ClInclude>
     <ClInclude Include="Source\BuildOrder.h">
+      <Filter>Information\Build Order</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\ReadWrite.h">
       <Filter>Information\Build Order</Filter>
     </ClInclude>
   </ItemGroup>

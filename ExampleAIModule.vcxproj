@@ -14,7 +14,7 @@
     <ProjectGuid>{2E63AE74-758A-4607-9DE4-D28E814A6E13}</ProjectGuid>
     <RootNamespace>ExampleAIModule</RootNamespace>
     <Keyword>Win32Proj</Keyword>
-    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.19041.0</WindowsTargetPlatformVersion>
     <ProjectName>insanitybot</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -99,7 +99,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="BUILDORDER.CPP" />
+    <ClCompile Include="Source\ReadWrite.cpp" />
     <ClCompile Include="Source\BuildOrder.cpp" />
     <ClCompile Include="Source\BWEM1.4.1\EasyBMP_1.06\EasyBMP.cpp">
       <RuntimeLibrary Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">MultiThreadedDLL</RuntimeLibrary>
@@ -132,6 +132,7 @@
     <ClCompile Include="Source\WorkerManager.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Source\ReadWrite.h" />
     <ClInclude Include="Source\BuildOrder.h" />
     <ClInclude Include="Source\BWEM1.4.1\EasyBMP_1.06\EasyBMP.h" />
     <ClInclude Include="Source\BWEM1.4.1\src\area.h" />

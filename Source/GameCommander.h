@@ -22,6 +22,7 @@ namespace insanitybot
 		void onUnitDestroy(BWAPI::Unit unit);
 		void onUnitRenegade(BWAPI::Unit unit);
 		void onUnitComplete(BWAPI::Unit unit);
+		void onGameEnd(bool isWinner);
 
 		void infoText();
 
