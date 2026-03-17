@@ -71,7 +71,7 @@ void GameCommander::infoText()
 	Broodwar->drawTextScreen(50, 70, "targetIsDefended: %d", _informationManager.targetIsDefended());
 	//Broodwar->drawTextScreen(50, 80, "numFrontierSquadsWanted: %d", _informationManager.numFrontierSquadsNeeded());
 	BWAPI::Broodwar->drawTextScreen(50, 80, "numDropsWanted: %d", _informationManager.numLoadedDropsWanted());
-	BWAPI::Broodwar->drawTextScreen(50, 130, "mapHash: %s", BWAPI::Broodwar->mapHash());
+	//BWAPI::Broodwar->drawTextScreen(50, 130, "mapHash: %s", BWAPI::Broodwar->mapHash());
 
 	Broodwar->drawCircleMap(_informationManager.getMainChokePos(), 10, BWAPI::Colors::Orange);
 	Broodwar->drawCircleMap(_informationManager.getNaturalChokePos(), 10, BWAPI::Colors::Red);

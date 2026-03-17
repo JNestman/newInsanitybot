@@ -798,7 +798,7 @@ void InformationManager::update()
 
 			for (auto choke : enemyNatToSomewhere)
 			{
-				distance = abs((BWAPI::Position(choke->Center()).x - _enemyNatPos.x) - (BWAPI::Position(choke->Center()).y - _enemyNatPos.y));
+				distance = abs((BWAPI::Position(choke->Center()).x - _enemyNatPos.x) + (BWAPI::Position(choke->Center()).y - _enemyNatPos.y));
 
 				if (distance < shortest)
 				{
