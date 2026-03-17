@@ -369,9 +369,21 @@ void UnitManager::update(InformationManager & _infoManager)
 			bool squadIsTooSpread = squad.tooSpreadOut();
 
 			if ((_infoManager.getAggression() && squad.infantrySquadSize() == infantrySquadSizeLimit &&
-				!squadIsTooSpread) || (squad.isMaxSupply() && squad.numMarines()))
+				!squadIsTooSpread) || (BWAPI::Broodwar->self()->supplyUsed() > 392 && (squad.numMarines() + squad.numFirebats())))
 			{
 				squad.setGoodToAttack(true);
+			}
+			else if (BWAPI::Broodwar->self()->supplyUsed() > 392 && !squad.numMarines() && !squad.numFirebats() && squad.numMedics())
+			{
+				for (auto medic : squad.getMedics())
+				{
+					if (medic && medic->exists())
+					{
+						_infantrySquads.front().addMedic(medic);
+					}
+				}
+
+				squad.getMedics().clear();
 			}
 
 			if (squad.isGoodToAttack())
@@ -402,7 +414,7 @@ void UnitManager::update(InformationManager & _infoManager)
 					squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 				}
 
-				if (squad.numMarines() == 0)
+				if (squad.numMarines() == 0 && squad.numFirebats() == 0)
 				{
 					squad.setGoodToAttack(false);
 					squad.setHaveGathered(false);
@@ -878,47 +890,6 @@ void UnitManager::update(InformationManager & _infoManager)
 		}
 	}
 
-	if (_infoManager.getStrategy() == "Nuke" &&
-		BWAPI::Broodwar->mapFileName() == "Terran08.scx" &&
-		_dropSquad.size())
-	{
-		for (std::list<Squad>::iterator squad = _dropSquad.begin(); squad != _dropSquad.end();)
-		{
-			if (squad->dropSquadSize())
-			{
-				if (squad->numMarines())
-				{
-					for (auto dropMarine : squad->getMarines())
-					{
-						if (!dropMarine || !dropMarine->exists())
-							continue;
-
-						if (_infoManager.getMarines().find(dropMarine) != _infoManager.getMarines().end())
-						{
-							_infoManager.getMarines().erase(dropMarine);
-						}
-					}
-				}
-
-				if (squad->numMedics())
-				{
-					for (auto dropMedic : squad->getMedics())
-					{
-						if (!dropMedic || !dropMedic->exists())
-							continue;
-
-						if (_infoManager.getMedics().find(dropMedic) != _infoManager.getMedics().end())
-						{
-							_infoManager.getMedics().erase(dropMedic);
-						}
-					}
-				}
-			}
-
-			squad = _dropSquad.erase(squad);
-		}
-	}
-
 	/*****************************************************************
 	* Spellcasting section
 	******************************************************************/
@@ -1313,7 +1284,7 @@ bool insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio, boo
 	{
 		if (_defensiveSquads.size() && ((unassigned->getType() == BWAPI::UnitTypes::Terran_Marine && _defensiveSquads.front().numMarines() < 12) ||
 			(unassigned->getType() == BWAPI::UnitTypes::Terran_Medic && _defensiveSquads.front().numMedics() < 3) ||
-			(unassigned->getType() == BWAPI::UnitTypes::Terran_Firebat && _defensiveSquads.front().numFirebats() < 1)))
+			(unassigned->getType() == BWAPI::UnitTypes::Terran_Firebat && _defensiveSquads.front().numFirebats() < 2)))
 		{
 			for (auto & squad : _defensiveSquads)
 			{
@@ -1323,7 +1294,7 @@ bool insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio, boo
 				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Medic && squad.numMedics() == 3)
 					continue;
 
-				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Firebat && squad.numFirebats() == 1)
+				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Firebat && squad.numFirebats() == 2)
 					continue;
 
 				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Marine)
@@ -1399,13 +1370,21 @@ bool insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio, boo
 
 			for (auto & squad : _infantrySquads)
 			{
-				if (squad.infantrySquadSize() == infantrySquadSizeLimit || (squad.isGoodToAttack() && !squad.isMaxSupply()))
+				//if (squad.infantrySquadSize() == infantrySquadSizeLimit || (squad.isGoodToAttack() && !squad.isMaxSupply()))
+				//	continue;
+
+				// Firebats bypass the goodToAttack check — they should join 
+				// an active squad rather than seed a new idle one
+				bool skipDueToAttacking = (squad.isGoodToAttack() && !squad.isMaxSupply())
+					&& unassigned->getType() != BWAPI::UnitTypes::Terran_Firebat;
+
+				if (squad.infantrySquadSize() == infantrySquadSizeLimit || skipDueToAttacking)
 					continue;
 
 				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Marine && squad.numMarines() == 12)
 					continue;
 
-				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Firebat && squad.numFirebats() == 2)
+				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Firebat && squad.numFirebats() == 3)
 					continue;
 
 				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Medic && squad.numMedics() == 3)
@@ -1432,6 +1411,24 @@ bool insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio, boo
 			{
 				_infantrySquads.push_back(Squad(unassigned, false));
 				return true;
+			}
+			else // There's no where to put them? idk throw them in the first squad
+			{
+				if (unassigned->getType() == BWAPI::UnitTypes::Terran_Marine)
+				{
+					_infantrySquads.front().addMarine(unassigned);
+					return true;
+				}
+				else if (unassigned->getType() == BWAPI::UnitTypes::Terran_Firebat)
+				{
+					_infantrySquads.front().addFirebat(unassigned);
+					return true;
+				}
+				else if (unassigned->getType() == BWAPI::UnitTypes::Terran_Medic)
+				{
+					_infantrySquads.front().addMedic(unassigned);
+					return true;
+				}
 			}
 		}
 		else
@@ -2237,7 +2234,7 @@ void insanitybot::UnitManager::handleFloaters(InformationManager & _infoManager,
 }
 
 /***************************************************************
-* Drop off island worker if we have one, drop enemy bases if not
+* Drop off island worker if we have one (currently on hold, no islands will be taken until the logic is reworked), drop enemy bases if not
 ****************************************************************/
 void insanitybot::UnitManager::handleDropships(InformationManager & _infoManager)
 {
@@ -2298,7 +2295,7 @@ void insanitybot::UnitManager::handleDropships(InformationManager & _infoManager
 			//BWAPI::Broodwar->self()->deadUnitCount(BWAPI::UnitTypes::Terran_Dropship) <= 4)
 		{
 			bool noVacancy = true;
-			for (auto squad : _dropSquad)
+			for (auto & squad : _dropSquad)
 			{
 				if (!squad.getDropship() || !squad.getDropship()->exists())
 				{
@@ -2317,7 +2314,7 @@ void insanitybot::UnitManager::handleDropships(InformationManager & _infoManager
 		{
 			if (dropship.first->getSpaceRemaining())
 			{
-				for (auto squad : _dropSquad)
+				for (auto & squad : _dropSquad)
 				{
 					if (squad.getDropship() && squad.getDropship()->exists() &&
 						squad.getDropship() == dropship.first)

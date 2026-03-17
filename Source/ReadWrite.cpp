@@ -9,7 +9,7 @@ insanitybot::ReadWrite::ReadWrite()
 
 void insanitybot::ReadWrite::initialize()
 {
-	buildOrders[BWAPI::Races::Zerg] = { "Nuke", "BioDrops", "FiveFacGol" };
+	buildOrders[BWAPI::Races::Zerg] = { "Nuke", "BioDrops", "FiveFacGol", "OneFacAllIn" };
 	buildOrders[BWAPI::Races::Protoss] = { "OneFacAllIn", "Mech", "GreedMech" };
 	buildOrders[BWAPI::Races::Terran] = { "MechVT", "MechAllIn", "Mech", "GreedMech" };
 	buildOrders[BWAPI::Races::Unknown] = { "OneFacAllIn", "Mech", "MechAllIn" };
@@ -79,14 +79,9 @@ std::string insanitybot::ReadWrite::selectBuildOrder(
 
 	// Aggregate wins and losses per build for this map/start
 	for (const auto& match : matchHistory) {
-
-		BWAPI::Broodwar << "Comparing file map '" << match.mapName << "' to current map '"
-			<< currentMap << "'" << std::endl;
-		
 		if (match.mapName == currentMap && match.startPosition == currentStartPosition) {
 			auto& s = stats[match.buildOrder];
 			match.wonGame ? ++s.w : ++s.l;
-			BWAPI::Broodwar << "*************** Reading Data ************************" << std::endl;
 		}
 	}
 

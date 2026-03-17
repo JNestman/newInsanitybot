@@ -2169,7 +2169,9 @@ bool insanitybot::Squad::flareTarget(BWAPI::Unit medic, std::map<BWAPI::Unit, st
 			((enemy->getType().isDetector() && limitTargets) || 
 			(!limitTargets && !enemy->getType().isWorker())) &&
 			!enemy->isIrradiated() && !enemy->isInvincible() && !enemy->isStasised() && 
-			!enemy->isBlind() && enemy->isVisible() && notInFlareDB(enemy, _flareBD))
+			!enemy->isBlind() && enemy->isVisible() && notInFlareDB(enemy, _flareBD) &&
+			enemy->getType() != BWAPI::UnitTypes::Zerg_Zergling && enemy->getType() != BWAPI::UnitTypes::Zerg_Egg &&
+			enemy->getType() != BWAPI::UnitTypes::Zerg_Larva)
 		{
 			if (medic->getDistance(enemy) < closestDistance)
 			{
