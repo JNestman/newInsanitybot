@@ -34,6 +34,9 @@ namespace insanitybot
 		BWAPI::Position dropTarget;
 		BWAPI::TilePosition frontierLocation;
 
+		BWAPI::Position _stableEnemyPos;
+		int             _lastEnemyUpdateFrame;
+
 		int defenseLastNeededFrame;
 
 		int mineOffset;
@@ -61,7 +64,7 @@ namespace insanitybot
 		std::list <BWAPI::Unit>& getMarines()		{ return _marines; };
 		std::list <BWAPI::Unit>& getMedics()		{ return _medics; };
 
-		std::map <BWAPI::Unit, int> getTanks()		{ return _tanks; };
+		std::map <BWAPI::Unit, int>& getTanks()		{ return _tanks; };
 
 		int getDefenseLastNeededFrame()				{ return defenseLastNeededFrame; };
 		void setDefenseLastNeededFrame(int frame)	{ defenseLastNeededFrame = frame; };
@@ -104,6 +107,9 @@ namespace insanitybot
 		void drop(BWAPI::Unitset enemyUnits);
 		void dropIdle();
 
+		BWAPI::Unit insanitybot::Squad::getClosestTankToTarget(BWAPI::Position attackPoint, BWAPI::Position forwardGather, bool haveGathered);
+		std::vector<BWAPI::Position> getArcFormationPositions(BWAPI::Position tankPos, BWAPI::Position enemyPos, int marineCount, int radius);
+
 		// Units have very similar commands across our three main squad commands, here we'll try to thin the code a bit
 		void handleMarines(BWAPI::Position attackPoint, BWAPI::Position forwardGather, bool haveGathered, std::list<BWAPI::Unit>& injured, 
 							std::list<BWAPI::Bullet> _activePsiStorms, std::list<BWAPI::Unit> _activeScarabs, BWAPI::Unitset enemyUnits, BWAPI::Unit target, BWAPI::Position gatherPoint);
@@ -111,9 +117,19 @@ namespace insanitybot
 							std::list<BWAPI::Bullet> _activePsiStorms, std::list<BWAPI::Unit> _activeScarabs, BWAPI::Unitset enemyUnits, BWAPI::Unit target, BWAPI::Position gatherPoint);
 		void handleMedics(std::map<BWAPI::Unit, std::pair<BWAPI::Unit, int>>& _flareBD, std::list<BWAPI::Unit> injured,
 							std::list<BWAPI::Bullet> _activePsiStorms, std::list<BWAPI::Unit> _activeScarabs, BWAPI::Position gatherPoint);
+		void handleTanks(BWAPI::Position attackPoint, BWAPI::Position forwardGather, bool haveGathered, std::list<BWAPI::Unit>& injured,
+							std::list<BWAPI::Bullet> _activePsiStorms, std::list<BWAPI::Unit> _activeScarabs, BWAPI::Unitset enemyUnits, BWAPI::Unit target, BWAPI::Position gatherPoint);
+		void handleVultures(BWAPI::Position attackPoint, BWAPI::Position forwardGather, bool haveGathered, std::list<BWAPI::Unit>& injured,
+							std::list<BWAPI::Bullet> _activePsiStorms, std::list<BWAPI::Unit> _activeScarabs, BWAPI::Unitset enemyUnits, BWAPI::Unit target, BWAPI::Position gatherPoint);
+		void handleGoliaths(BWAPI::Position attackPoint, BWAPI::Position forwardGather, bool haveGathered, std::list<BWAPI::Unit>& injured,
+							std::list<BWAPI::Bullet> _activePsiStorms, std::list<BWAPI::Unit> _activeScarabs, BWAPI::Unitset enemyUnits, BWAPI::Unit target, BWAPI::Position gatherPoint);
 
 
 		void handleBCs(BWAPI::Position attackPoint, BWAPI::Position forwardGather, bool haveGathered, BWAPI::Unitset enemyUnits, BWAPI::Unit target, BWAPI::Position gatherPoint);
+
+		void handleGhosts(BWAPI::Position attackPoint, BWAPI::Position forwardGather, bool haveGathered, std::list<BWAPI::Unit>& injured,
+			std::list<BWAPI::Bullet> _activePsiStorms, std::list<BWAPI::Unit> _activeScarabs, BWAPI::Unitset enemyUnits, BWAPI::Unit target, BWAPI::Position gatherPoint);
+
 
 
 		void handleNuker(BWAPI::Position target);

@@ -40,7 +40,12 @@ void UnitManager::update(InformationManager & _infoManager)
 
 	// If we don't know where the enemy is, scout around
 	std::vector<BWAPI::TilePosition>& squadScoutLocation = _infoManager.getSquadScoutLocations();
+
+	if (squadScoutLocation.empty())
+		squadScoutLocation.push_back(_infoManager.getEnemyMainTilePos());
+
 	BWAPI::TilePosition nextUp = squadScoutLocation.front();
+
 	if (BWAPI::Broodwar->isVisible(nextUp.x, nextUp.y))
 	{
 		squadScoutLocation.push_back(squadScoutLocation.front());
@@ -275,6 +280,39 @@ void UnitManager::update(InformationManager & _infoManager)
 		// Currently this will not reassign squads to bases taken elsewhere if the first spot is taken by the enemy
 		BWAPI::TilePosition targetLocation = BuildingPlacer::Instance().getDesiredLocation(BWAPI::UnitTypes::Terran_Command_Center, _infoManager, empty);
 
+		if (_infoManager.isBio(_infoManager.getStrategy()))
+		{
+			// Check outer bases for destroyed or missing bunkers that need frontier coverage
+			const double bunkerSearchRadius = 320;
+			for (auto & base : _infoManager.getOwnedBases())
+			{
+				if (_infoManager.closeEnough(base.first, BWAPI::Position(_infoManager.getMainPosition())) || _infoManager.closeEnough(base.first, BWAPI::Position(_infoManager.getNatPosition())))
+					continue;
+
+				// Skip bases with no remaining resources — not worth defending
+				if (base.second->getRemainingMinerals() == 0)
+					continue;
+
+				bool hasBunker = false;
+				for (auto bunker : _infoManager.getBunkers())
+				{
+					if (!bunker || !bunker->exists())
+						continue;
+					if (bunker->getDistance(base.first) < bunkerSearchRadius)
+					{
+						hasBunker = true;
+						break;
+					}
+				}
+
+				if (!hasBunker)
+				{
+					targetLocation = BWAPI::TilePosition(base.first);
+					break;
+				}
+			}
+		}
+
 		if (targetLocation.x < BWAPI::Broodwar->mapWidth() * .30) // left side of the map
 			targetLocation += BWAPI::TilePosition(BWAPI::UnitTypes::Terran_Command_Center.tileWidth() * 2, 0);
 		else
@@ -354,9 +392,40 @@ void UnitManager::update(InformationManager & _infoManager)
 
 	if (_frontierSquads.size())
 	{
-		for (auto & squad : _frontierSquads)
+		for (std::list<Squad>::iterator squad = _frontierSquads.begin(); squad != _frontierSquads.end();)
 		{
-			squad.protect();
+			// For bio builds only, check if the bunker at this frontier is filled
+			if (_infoManager.isBio(_infoManager.getStrategy()))
+			{
+				const double bunkerSearchRadius = 320; // roughly 16 tiles, tune as needed
+
+				BWAPI::Unit frontierBunker = nullptr;
+				double closestDist = DBL_MAX;
+				for (auto bunker : _infoManager.getBunkers())
+				{
+					if (!bunker || !bunker->exists() || bunker->isBeingConstructed())
+						continue;
+					double dist = bunker->getDistance(BWAPI::Position(squad->getFrontierLocation()));
+					if (dist < closestDist && dist < bunkerSearchRadius)
+					{
+						closestDist = dist;
+						frontierBunker = bunker;
+					}
+				}
+
+				if (frontierBunker &&
+					frontierBunker->getLoadedUnits().size() == frontierBunker->getType().spaceProvided())
+				{
+					// Bunker is full 
+					squad->setHaveGathered(false);
+					_infantrySquads.push_back(*squad);
+					squad = _frontierSquads.erase(squad);
+					continue;
+				}
+			}
+
+			squad->protect();
+			squad++;
 		}
 	}
 
@@ -368,8 +437,8 @@ void UnitManager::update(InformationManager & _infoManager)
 		{
 			bool squadIsTooSpread = squad.tooSpreadOut();
 
-			if ((_infoManager.getAggression() && squad.infantrySquadSize() == infantrySquadSizeLimit &&
-				!squadIsTooSpread) || (BWAPI::Broodwar->self()->supplyUsed() > 392 && (squad.numMarines() + squad.numFirebats())))
+			if ((_infoManager.getAggression() && squad.infantrySquadSize() == infantrySquadSizeLimit) || 
+				(BWAPI::Broodwar->self()->supplyUsed() > 392 && (squad.numMarines() + squad.numFirebats())))
 			{
 				squad.setGoodToAttack(true);
 			}
@@ -391,7 +460,7 @@ void UnitManager::update(InformationManager & _infoManager)
 				BWAPI::Position forwardPosition = getForwardPoint(_infoManager);
 
 				// initial attempt to group up squads so they're not a limbo line
-				if (squadIsTooSpread && !squad.isMaxSupply())
+				if (squadIsTooSpread && !squad.isMaxSupply() && squad.getSquadPosition().getDistance(BWAPI::Position(_infoManager.getMainPosition())) > 800)
 				{
 					bool haveWeGathered = squad.haveGatheredAtForwardPoint();
 					squad.attack(squad.getSquadPosition(), squad.getSquadPosition(), _flareBD, _infoManager.getEnemyBases().size());
@@ -637,17 +706,6 @@ void UnitManager::update(InformationManager & _infoManager)
 				}
 			}
 		}
-		
-
-		// Erase empty squads
-		for (std::list<Squad>::iterator emptySquad = _specialistSquad.begin(); emptySquad != _specialistSquad.end(); emptySquad++)
-		{
-			if (!emptySquad->specialistSquadSize())
-			{
-				_specialistSquad.erase(emptySquad);
-				break;
-			}
-		}
 	}
 
 	//Specialist Squad
@@ -822,11 +880,11 @@ void UnitManager::update(InformationManager & _infoManager)
 
 
 		// Erase empty squads
-		for (std::list<Squad>::iterator emptySquad = _specialistSquad.begin(); emptySquad != _specialistSquad.end(); emptySquad++)
+		for (std::list<Squad>::iterator emptySquad = _BCsquad.begin(); emptySquad != _BCsquad.end(); emptySquad++)
 		{
-			if (!emptySquad->specialistSquadSize())
+			if (!emptySquad->bcSquadSize())
 			{
-				_specialistSquad.erase(emptySquad);
+				_BCsquad.erase(emptySquad);
 				break;
 			}
 		}
@@ -1373,7 +1431,7 @@ bool insanitybot::UnitManager::assignSquad(BWAPI::Unit unassigned, bool bio, boo
 				//if (squad.infantrySquadSize() == infantrySquadSizeLimit || (squad.isGoodToAttack() && !squad.isMaxSupply()))
 				//	continue;
 
-				// Firebats bypass the goodToAttack check — they should join 
+				// Firebats bypass the goodToAttack check - they should join 
 				// an active squad rather than seed a new idle one
 				bool skipDueToAttacking = (squad.isGoodToAttack() && !squad.isMaxSupply())
 					&& unassigned->getType() != BWAPI::UnitTypes::Terran_Firebat;
@@ -2039,95 +2097,103 @@ void UnitManager::checkDeadEngineers(InformationManager & _infoManager)
 
 void UnitManager::handleFieldEngineers(InformationManager & _infoManager, BWAPI::TilePosition nextUp)
 {
-	std::list<Squad> _squads;
-	std::list<BWAPI::Unit> _injuredTanks;
-	_injuredTanks.clear();
+	// Throttle to every 6 frames — engineers don't need per-frame commands
+	// and constant reissuing prevents orders from executing.
+	if (BWAPI::Broodwar->getFrameCount() % 6 != 0) return;
+
+	// Work out our reference target position for "closest to front" logic
+	BWAPI::Position targetPos = BWAPI::Position(0, 0);
+	if (_infoManager.getEnemyBases().size())
+		targetPos = _infoManager.getEnemyBases().begin()->first;
+	else if (_infoManager.getEnemyBuildingPositions().size())
+		targetPos = _infoManager.getEnemyBuildingPositions().front();
+	else
+		targetPos = BWAPI::Position(nextUp);
+
+	// Use a reference to avoid copying the entire squad list
+	std::list<Squad> & _squads = _infoManager.isMech(_infoManager.getStrategy())
+		? _mechSquads : _allInSquad;
+
+	std::list<BWAPI::Unit> injuredTanks;
 	BWAPI::Unit closestTankToTarget = NULL;
-	if (_infoManager.isMech(_infoManager.getStrategy()))
-		_squads = _mechSquads;
-	else
-		_squads = _allInSquad;
 
-	for (auto squad : _squads)
+	for (auto & squad : _squads)
 	{
-		if (squad.getTanks().size())
+		for (auto & tank : squad.getTanks())
 		{
-			for (auto tank : squad.getTanks())
+			if (!tank.first || !tank.first->exists()) continue;
+
+			if (tank.first->getHitPoints() < tank.first->getType().maxHitPoints())
+				injuredTanks.push_back(tank.first);
+
+			if (closestTankToTarget == NULL ||
+				tank.first->getDistance(targetPos) < closestTankToTarget->getDistance(targetPos))
 			{
-				if (!tank.first || !tank.first->exists())
-					continue;
-
-				if (tank.first->getHitPoints() < tank.first->getType().maxHitPoints())
-				{
-					_injuredTanks.push_back(tank.first);
-				}
-
-				if (closestTankToTarget == NULL)
-				{
-					closestTankToTarget = tank.first;
-					continue;
-				}
-
-				if (_infoManager.getEnemyBases().size() && 
-					tank.first->getDistance(_infoManager.getEnemyBases().begin()->first) < closestTankToTarget->getDistance(_infoManager.getEnemyBases().begin()->first))
-				{
-					closestTankToTarget = tank.first;
-				}
-				else if (!_infoManager.getEnemyBases().size() && _infoManager.getEnemyBuildingPositions().size() &&
-					tank.first->getDistance(_infoManager.getEnemyBuildingPositions().front()) < closestTankToTarget->getDistance(_infoManager.getEnemyBuildingPositions().front()))
-				{
-					closestTankToTarget = tank.first;
-				}
-				else if (!_infoManager.getEnemyBases().size() && _infoManager.getEnemyBuildingPositions().size() &&
-					tank.first->getDistance(BWAPI::Position(nextUp)) < closestTankToTarget->getDistance(BWAPI::Position(nextUp)))
-				{
-					closestTankToTarget = tank.first;
-				}
+				closestTankToTarget = tank.first;
 			}
 		}
 	}
 
-	if (_injuredTanks.size())
+	if (!injuredTanks.empty())
 	{
-		BWAPI::Unit closestInjuredTank = _injuredTanks.front();
-
-		for (auto tank : _injuredTanks)
-		{
-			if (_infoManager.getEnemyBases().size() &&
-				tank->getDistance(_infoManager.getEnemyBases().begin()->first) < closestTankToTarget->getDistance(_infoManager.getEnemyBases().begin()->first))
-			{
-				closestInjuredTank = tank;
-			}
-			else if (!_infoManager.getEnemyBases().size() && _infoManager.getEnemyBuildingPositions().size() &&
-				tank->getDistance(_infoManager.getEnemyBuildingPositions().front()) < closestTankToTarget->getDistance(_infoManager.getEnemyBuildingPositions().front()))
-			{
-				closestInjuredTank = tank;
-			}
-			else if (!_infoManager.getEnemyBases().size() && _infoManager.getEnemyBuildingPositions().size() &&
-				tank->getDistance(BWAPI::Position(nextUp)) < closestTankToTarget->getDistance(BWAPI::Position(nextUp)))
-			{
-				closestInjuredTank = tank;
-			}
-		}
-
+		// Assign each engineer to the injured tank closest to THAT engineer,
+		// not closest to the front. Previously this was comparing to
+		// closestTankToTarget which is unrelated to engineer position.
 		for (auto & engineer : _infoManager.getFieldEngineers())
 		{
-			if (!engineer || !engineer->exists())
-				continue;
-			else if (!engineer->isRepairing())
-				engineer->repair(closestInjuredTank);
+			if (!engineer || !engineer->exists()) continue;
+
+			// Find the injured tank closest to this specific engineer
+			BWAPI::Unit closestInjured = NULL;
+			int closestDist = INT_MAX;
+			for (auto tank : injuredTanks)
+			{
+				if (!tank || !tank->exists()) continue;
+				int d = engineer->getDistance(tank);
+				if (d < closestDist) { closestDist = d; closestInjured = tank; }
+			}
+
+			if (!closestInjured) continue;
+
+			// Only issue repair if not already repairing this specific tank
+			// to avoid interrupting an in-progress repair
+			bool alreadyRepairingThis =
+				engineer->isRepairing() &&
+				engineer->getOrderTarget() == closestInjured;
+
+			if (!alreadyRepairingThis)
+				engineer->repair(closestInjured);
 		}
 	}
 	else
 	{
+		// No injured tanks — follow the frontmost tank
 		for (auto & engineer : _infoManager.getFieldEngineers())
 		{
-			if (!engineer || !engineer->exists())
-				continue;
-			else if (closestTankToTarget == NULL || !closestTankToTarget->exists())
-				engineer->move(_infoManager.getOwnedBases().begin()->first);
-			else if (!_infoManager.closeEnough(engineer->getPosition(), closestTankToTarget->getPosition()))
-				engineer->move(closestTankToTarget->getPosition());
+			if (!engineer || !engineer->exists()) continue;
+
+			if (closestTankToTarget == NULL || !closestTankToTarget->exists())
+			{
+				// No tanks at all — fall back to home base
+				if (!_infoManager.getOwnedBases().empty())
+					engineer->move(_infoManager.getOwnedBases().begin()->first);
+			}
+			else
+			{
+				// Only issue a move command if not already close enough
+				// and not already heading to the tank's position
+				bool alreadyThere = _infoManager.closeEnough(
+					engineer->getPosition(),
+					closestTankToTarget->getPosition());
+
+				bool alreadyHeadingThere =
+					(engineer->getLastCommand().getType() == BWAPI::UnitCommandTypes::Move &&
+						engineer->getLastCommand().getTargetPosition() ==
+						closestTankToTarget->getPosition());
+
+				if (!alreadyThere && !alreadyHeadingThere)
+					engineer->move(closestTankToTarget->getPosition());
+			}
 		}
 	}
 }

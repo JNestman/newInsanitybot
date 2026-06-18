@@ -199,15 +199,26 @@ void Base::clearGasAssignment()
 {
 	for (auto & assignment : refinery_Assignments)
 	{
-		for (auto & worker : assignment.second)
+		for (auto worker : assignment.second)
 		{
 			if (!worker || !worker->exists())
 				continue;
 
-			worker->stop();
+			// Redirect to minerals rather than stop() — idle SCVs on the next
+			// frame will get routed back to gas by checkAssignment otherwise
+			if (!mineral_Assignments.empty())
+			{
+				auto & patch = mineral_Assignments.begin()->first;
+				assignMineralWorkers(worker);
+				if (patch && patch->Unit() && patch->Unit()->exists())
+					worker->gather(patch->Unit());
+			}
+			else if (baseCommandCenter && baseCommandCenter->exists())
+			{
+				worker->move(baseCommandCenter->getPosition());
+			}
 		}
 	}
-
 	refinery_Assignments.clear();
 }
 
@@ -354,7 +365,7 @@ int Base::getRemainingMinerals()
 
 	for (auto mineral : m_Minerals)
 	{
-		if (mineral && mineral->Unit() && mineral->Unit()->exists())
+		if (mineral && mineral->Unit()->exists() && mineral->Unit())
 			amount += mineral->Amount();
 	}
 
@@ -487,26 +498,13 @@ void Base::removeAssignment(BWAPI::Unit worker)
 {
 	for (auto & assignment : mineral_Assignments)
 	{
-		for (auto & mineralWorker : assignment.second)
-		{
-			if (mineralWorker == worker)
-			{
-				assignment.second.erase(mineralWorker);
-				return;
-			}
-		}
+		if (assignment.second.erase(worker))
+			return;
 	}
-
 	for (auto & assignment : refinery_Assignments)
 	{
-		for (auto & gasWorker : assignment.second)
-		{
-			if (gasWorker == worker)
-			{
-				assignment.second.erase(gasWorker);
-				return;
-			}
-		}
+		if (assignment.second.erase(worker))
+			return;
 	}
 }
 
