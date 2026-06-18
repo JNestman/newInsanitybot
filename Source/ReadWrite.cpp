@@ -15,56 +15,82 @@ void insanitybot::ReadWrite::initialize()
 	buildOrders[BWAPI::Races::Unknown] = { "OneFacAllIn", "Mech", "MechAllIn" };
 }
 
-std::vector<MatchData>  insanitybot::ReadWrite::readCompactMatchData() {
+std::vector<MatchData> insanitybot::ReadWrite::readCompactMatchData()
+{
 	std::string filePath = "bwapi-data/read/" + BWAPI::Broodwar->enemy()->getName() + ".txt";
-	//std::string filePath = "bwapi-data/write/" + BWAPI::Broodwar->enemy()->getName() + ".txt";
 	std::vector<MatchData> matches;
-
 	std::ifstream inFile(filePath);
-	if (inFile.is_open()) {
+	if (inFile.is_open())
+	{
 		std::string line;
-		while (std::getline(inFile, line)) {
+		while (std::getline(inFile, line))
+		{
 			std::istringstream iss(line);
 			std::string mapName, startPositionStr, buildOrder, resultStr;
+			if (std::getline(iss, mapName, '|') &&
+				std::getline(iss, startPositionStr, '|') &&
+				std::getline(iss, buildOrder, '|') &&
+				std::getline(iss, resultStr, '|'))
+			{
+				// Skip malformed records where build order looks like a coordinate
+				// or is otherwise unrecognized
+				bool validBuildOrder = false;
+				for (auto & race : buildOrders)
+				{
+					for (auto & order : race.second)
+					{
+						if (order == buildOrder)
+						{
+							validBuildOrder = true;
+							break;
+						}
+					}
+					if (validBuildOrder) break;
+				}
+				if (!validBuildOrder)
+					continue;
 
-			if (iss >> mapName >> startPositionStr >> buildOrder >> resultStr) {
 				MatchData match;
-				// Parse map name
 				match.mapName = mapName;
-
-				// Parse starting position
 				int x, y;
 				sscanf(startPositionStr.c_str(), "%d,%d", &x, &y);
 				match.startPosition = BWAPI::Position(x, y);
-
-				// Parse build order
 				match.buildOrder = buildOrder;
-
-				// Parse result
 				match.wonGame = (resultStr == "W");
-
 				matches.push_back(match);
 			}
 		}
 		inFile.close();
 	}
-
 	return matches;
 }
 
-void  insanitybot::ReadWrite::writeCompactMatchData(const std::string& opponentName, const std::string& mapName, const BWAPI::Position& startPosition, std::string buildOrder, bool wonGame) {
-	std::string filePath = "bwapi-data/write/" + opponentName + ".txt";
-
-	std::ofstream outFile(filePath, std::ios::app);
-	if (outFile.is_open()) {
-		// Write compact format: "mapId startPosition buildOrder result"
-		outFile << mapName << " ";
-		outFile << startPosition.x << "," << startPosition.y << " ";
-		outFile << buildOrder << " ";
-		outFile << (wonGame ? 'W' : 'L') << "\n";
+void insanitybot::ReadWrite::writeCompactMatchData(const std::string& opponentName, const std::string& mapName, const BWAPI::Position& startPosition, std::string buildOrder, bool wonGame)
+{
+	// Carry forward existing history from the read directory
+	std::vector<MatchData> existing = readCompactMatchData();
+	//std::string filePath = "bwapi-data/write/" + opponentName + ".txt";
+	std::string filePath = "bwapi-data/read/" + opponentName + ".txt";
+	std::ofstream outFile(filePath, std::ios::trunc);
+	if (outFile.is_open())
+	{
+		// Write all previous records first
+		for (const auto & match : existing)
+		{
+			outFile << match.mapName << "|"
+				<< match.startPosition.x << "," << match.startPosition.y << "|"
+				<< match.buildOrder << "|"
+				<< (match.wonGame ? 'W' : 'L') << "\n";
+		}
+		// Then append the new result
+		outFile << mapName << "|"
+			<< startPosition.x << "," << startPosition.y << "|"
+			<< buildOrder << "|"
+			<< (wonGame ? 'W' : 'L') << "\n";
 		outFile.close();
 	}
-	else {
+	else
+	{
 		BWAPI::Broodwar << "Error opening file for writing: " << filePath << std::endl;
 	}
 }
@@ -133,7 +159,7 @@ std::string insanitybot::ReadWrite::selectRandomBuildOrder() {
 	}
 	else {
 		// Fallback case if opponent's race is unknown or not in the map
-		return "mech";  // You can define a default build order
+		return "Mech";  // You can define a default build order
 	}
 }
 

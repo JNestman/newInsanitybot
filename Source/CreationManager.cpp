@@ -165,7 +165,7 @@ void CreationManager::update(InformationManager & _infoManager)
 				}
 			}
 			
-			if (unit == BWAPI::UnitTypes::Terran_Bunker && (!_infoManager.getBarracks().size() || _infoManager.getBunkers().size() == 2))
+			if (unit == BWAPI::UnitTypes::Terran_Bunker && !_infoManager.getBarracks().size())
 			{
 				std::list<BWAPI::UnitType>& queue = _infoManager.getQueue();
 				for (std::list<BWAPI::UnitType>::iterator it = queue.begin(); it != queue.end(); it++)

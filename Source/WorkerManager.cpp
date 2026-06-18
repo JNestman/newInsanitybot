@@ -106,6 +106,20 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	* repairs
 	******************************************************************************/
 	bool needRepair = false;
+	// Find the natural base (second owned base, i.e. not the main)
+	BWAPI::Unit naturalBunker = nullptr;
+	double furthestDist = 0.0;
+	for (auto bunker : _infoManager.getBunkers())
+	{
+		if (!bunker || !bunker->exists() || bunker->isBeingConstructed())
+			continue;
+		double dist = bunker->getDistance(BWAPI::Position(_infoManager.getMainPosition()));
+		if (dist > furthestDist)
+		{
+			furthestDist = dist;
+			naturalBunker = bunker;
+		}
+	}
 
 	// Repair for bunker
 	for (auto bunker : _infoManager.getBunkers())
@@ -115,11 +129,12 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			continue;
 		}
 
-		if (!bunker->isBeingConstructed() && 
+		if (naturalBunker &&
 			(_infoManager.getOwnedBases().size() == 2 && _infoManager.getNumUnfinishedUnit(BWAPI::UnitTypes::Terran_Command_Center)) &&
 			_infoManager.isTwoBasePlay(_infoManager.getStrategy()))
 		{
 			needRepair = true;
+
 			if (_repairWorkers.size() > 2)
 			{
 				for (auto & worker : _repairWorkers)
@@ -141,23 +156,22 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 						break;
 					}
 
-					if (bunker->getHitPoints() < bunker->getType().maxHitPoints())
+					if (naturalBunker->getHitPoints() < naturalBunker->getType().maxHitPoints())
 					{
-						if (!worker->isRepairing() || worker->getTarget() != bunker)
-							worker->repair(bunker);
+						if (!worker->isRepairing() || worker->getTarget() != naturalBunker)
+							worker->repair(naturalBunker);
 					}
 					else
 					{
-						if (!_infoManager.closeEnough(worker->getPosition(), bunker->getPosition()))
-							worker->move(bunker->getPosition());
+						if (!_infoManager.closeEnough(worker->getPosition(), naturalBunker->getPosition()))
+							worker->move(naturalBunker->getPosition());
 					}
 				}
 			}
 			else
 			{
-				assignRepairWorkers(_workers, _repairWorkers, bunker, _ownedBases);
+				assignRepairWorkers(_workers, _repairWorkers, naturalBunker, _ownedBases);
 			}
-
 			break;
 		}
 		if (bunker->isAttacking() || bunker->isUnderAttack() || (bunker->getHitPoints() < bunker->getType().maxHitPoints() && !bunker->isBeingConstructed()))
@@ -563,7 +577,9 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			else if (_infoManager.getPauseGas() && it->second->isGasWorker(it->first))
 			{
 				workerBase->removeAssignment(it->first);
-				it->first->stop();
+
+				if (workerBase->getBaseCommandCenter() && workerBase->getBaseCommandCenter()->exists())
+					it->first->move(workerBase->getBaseCommandCenter()->getPosition());
 			}
 			else if (it->first->isIdle() || 
 				((workerBase->baseHasRefinery() && !workerBase->getBaseRefinery()->isConstructing() && workerBase->getNumGasWorkers() < 3) && !_infoManager.getPauseGas()) ||

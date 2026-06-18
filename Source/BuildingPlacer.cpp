@@ -365,34 +365,93 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 	//Bunkers go to choke positions
 	else if (building == BWAPI::UnitTypes::Terran_Bunker)
 	{
-		if (_infoManager.isOneBasePlay(_infoManager.getStrategy()) && _infoManager.getStrategy() != "MechAllIn" &&
+		if (_infoManager.isOneBasePlay(_infoManager.getStrategy()) &&
+			_infoManager.getStrategy() != "MechAllIn" &&
 			!_infoManager.isExpanding())
 		{
-			bool bunkerSpotBuildable = BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()), true) &&
+			// Original main base bunker placement — untouched
+			bool bunkerSpotBuildable =
+				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()), true) &&
 				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 0), true) &&
 				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(0, 1), true) &&
 				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 1), true);
-
-			if (bunkerSpotBuildable)
-				desiredLocation = _infoManager.getMainBunkerPos();
-			else
-				desiredLocation = getPositionNear(BWAPI::UnitTypes::Terran_Bunker, _infoManager.getMainBunkerPos(), _infoManager.isMech(_infoManager.getStrategy()));
+			desiredLocation = bunkerSpotBuildable
+				? _infoManager.getMainBunkerPos()
+				: getPositionNear(BWAPI::UnitTypes::Terran_Bunker,
+					_infoManager.getMainBunkerPos(),
+					_infoManager.isMech(_infoManager.getStrategy()));
+		}
+		else if (_infoManager.getOwnedBases().size() == 2)
+		{
+			// Original natural bunker placement — untouched
+			bool bunkerSpotBuildable =
+				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getNatBunkerPos()), true);
+			desiredLocation = bunkerSpotBuildable
+				? _infoManager.getNatBunkerPos()
+				: getPositionNear(BWAPI::UnitTypes::Terran_Bunker,
+					_infoManager.getNatBunkerPos(),
+					_infoManager.isMech(_infoManager.getStrategy()));
 		}
 		else
 		{
-			// For some reason, this behavior leads to better bunker placement in the natural.
-			bool bunkerSpotBuildable = BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()), true); /*&&
-				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 0)) &&
-				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(0, 1)) &&
-				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 1));*/
+			// Third base and beyond — use dynamic placement
+			bool foundPosition = false;
+			for (auto & base : _infoManager.getOwnedBases())
+			{
+				// Skip main and natural, we only want outer expansions
+				if (_infoManager.closeEnough(base.first, BWAPI::Position(_infoManager.getMainPosition())) ||
+					_infoManager.closeEnough(base.first, BWAPI::Position(_infoManager.getNatPosition())))
+					continue;
 
-			if (bunkerSpotBuildable)
-				desiredLocation = _infoManager.getNatBunkerPos();
-			else
-				desiredLocation = getPositionNear(BWAPI::UnitTypes::Terran_Bunker, _infoManager.getNatBunkerPos(), _infoManager.isMech(_infoManager.getStrategy()));
-				//desiredLocation = BWAPI::Broodwar->getBuildLocation(BWAPI::UnitTypes::Terran_Bunker, _infoManager.getNatBunkerPos());
+				BWAPI::TilePosition candidatePos = getPositionNear(BWAPI::UnitTypes::Terran_Bunker, base.second->Location(), _infoManager.isMech(_infoManager.getStrategy()));
+
+				bool alreadyCovered = false;
+				for (auto bunker : _infoManager.getBunkers())
+				{
+					if (bunker && bunker->exists() &&
+						bunker->getDistance(BWAPI::Position(candidatePos)) < 320)
+					{
+						alreadyCovered = true;
+						break;
+					}
+				}
+				for (auto & taken : takenPositions)
+				{
+					if (taken == candidatePos)
+					{
+						alreadyCovered = true;
+						break;
+					}
+				}
+
+				if (!alreadyCovered)
+				{
+					bool bunkerSpotBuildable =
+						BWAPI::Broodwar->isBuildable(candidatePos, true) &&
+						BWAPI::Broodwar->isBuildable(candidatePos + BWAPI::TilePosition(1, 0), true) &&
+						BWAPI::Broodwar->isBuildable(candidatePos + BWAPI::TilePosition(0, 1), true) &&
+						BWAPI::Broodwar->isBuildable(candidatePos + BWAPI::TilePosition(1, 1), true);
+					desiredLocation = bunkerSpotBuildable
+						? candidatePos
+						: getPositionNear(BWAPI::UnitTypes::Terran_Bunker, candidatePos,
+							_infoManager.isMech(_infoManager.getStrategy()));
+					foundPosition = true;
+					break;
+				}
+			}
+
+			// Fallback if somehow no outer base passed the coverage check
+			if (!foundPosition)
+			{
+				bool bunkerSpotBuildable =
+					BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getNatBunkerPos()), true);
+				desiredLocation = bunkerSpotBuildable
+					? _infoManager.getNatBunkerPos()
+					: getPositionNear(BWAPI::UnitTypes::Terran_Bunker,
+						_infoManager.getNatBunkerPos(),
+						_infoManager.isMech(_infoManager.getStrategy()));
+			}
 		}
-
 		return desiredLocation;
 	}
 	// Refineries should be placed at taken expansions
@@ -623,15 +682,22 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 
 	if (building.tileSize() == BWAPI::UnitTypes::Terran_Barracks.tileSize())
 	{
-		BWAPI::Position halfwayPoint = BWAPI::Position((BWAPI::Position(_infoManager.getMainPosition()).x + _infoManager.getMainChokePos().x) / 2, (BWAPI::Position(_infoManager.getMainPosition()).y + _infoManager.getMainChokePos().y) / 2);
-		desiredLocation = BWAPI::TilePosition(halfwayPoint);
-
-		if (BWAPI::Broodwar->mapHash() == "614d0048c6cc9dcf08da1409462f22f2ac4f5a0b") // PolarisRhapsody_1.0
+		if (building == BWAPI::UnitTypes::Terran_Starport)
 		{
-			if (_infoManager.getMainPosition().y > BWAPI::Broodwar->mapHeight() * .50) // Bottom
-				desiredLocation = _infoManager.getMainPosition() + BWAPI::TilePosition(0, -10);
-			else
-				desiredLocation = _infoManager.getMainPosition() + BWAPI::TilePosition(0, 10);
+			desiredLocation = _infoManager.getMainPosition();
+		}
+		else
+		{
+			BWAPI::Position halfwayPoint = BWAPI::Position((BWAPI::Position(_infoManager.getMainPosition()).x + _infoManager.getMainChokePos().x) / 2, (BWAPI::Position(_infoManager.getMainPosition()).y + _infoManager.getMainChokePos().y) / 2);
+			desiredLocation = BWAPI::TilePosition(halfwayPoint);
+
+			if (BWAPI::Broodwar->mapHash() == "614d0048c6cc9dcf08da1409462f22f2ac4f5a0b") // PolarisRhapsody_1.0
+			{
+				if (_infoManager.getMainPosition().y > BWAPI::Broodwar->mapHeight() * .50) // Bottom
+					desiredLocation = _infoManager.getMainPosition() + BWAPI::TilePosition(0, -10);
+				else
+					desiredLocation = _infoManager.getMainPosition() + BWAPI::TilePosition(0, 10);
+			}
 		}
 	}
 	else if (building.tileSize() == BWAPI::UnitTypes::Terran_Supply_Depot.tileSize())
@@ -937,7 +1003,20 @@ BWAPI::TilePosition insanitybot::BuildingPlacer::getTurretLocation(InformationMa
 			}
 
 			if (bunkerNeedsTurret)
-				 return getPositionNear(BWAPI::UnitTypes::Terran_Missile_Turret, bunker->getTilePosition(), _infoManager.isMech(_infoManager.getStrategy()));
+			{
+				BWAPI::TilePosition result = getPositionNear(
+					BWAPI::UnitTypes::Terran_Missile_Turret,
+					bunker->getTilePosition(),
+					_infoManager.isMech(_infoManager.getStrategy()));
+
+				// Reject the result if it wandered too far from the bunker
+				if (result.isValid() &&
+					BWAPI::Position(result).getDistance(bunker->getPosition()) < 320)
+				{
+					return result;
+				}
+				// Fallthrough to base turret placement if result is out of range
+			}
 		}
 	}
 

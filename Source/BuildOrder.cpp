@@ -344,6 +344,50 @@ void insanitybot::BuildOrder::Nuke(InformationManager & _infoManager)
 		_queue.push_back(BWAPI::UnitTypes::Terran_Academy);
 		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Academy.mineralPrice());
 	}
+
+	// Build Bunkers at expansions
+	if (numRaxFinished)
+	{
+		const double bunkerSearchRadius = 320;
+		for (auto & base : _infoManager.getOwnedBases())
+		{
+			if (_infoManager.closeEnough(base.first, BWAPI::Position(_infoManager.getMainPosition())) || _infoManager.closeEnough(base.first, BWAPI::Position(_infoManager.getNatPosition())))
+				continue;
+
+			if (base.second->getRemainingMinerals() == 0)
+				continue;
+
+			bool hasBunker = false;
+			for (auto bunker : _infoManager.getBunkers())
+			{
+				if (!bunker || !bunker->exists())
+					continue;
+				if (bunker->getDistance(base.first) < bunkerSearchRadius)
+				{
+					hasBunker = true;
+					break;
+				}
+			}
+
+			bool alreadyQueued = false;
+			for (auto & item : _queue)
+			{
+				if (item == BWAPI::UnitTypes::Terran_Bunker)
+				{
+					alreadyQueued = true;
+					break;
+				}
+			}
+
+			if (!hasBunker && !alreadyQueued)
+			{
+				_queue.push_back(BWAPI::UnitTypes::Terran_Bunker);
+				_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() +
+					BWAPI::UnitTypes::Terran_Bunker.mineralPrice());
+				break;
+			}
+		}
+	}
 }
 
 /**************************************************
@@ -488,6 +532,50 @@ void insanitybot::BuildOrder::BioDrops(InformationManager & _infoManager)
 	{
 		_queue.push_back(BWAPI::UnitTypes::Terran_Academy);
 		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Academy.mineralPrice());
+	}
+
+	// Build Bunkers at expansions
+	if (numRaxFinished)
+	{
+		const double bunkerSearchRadius = 320;
+		for (auto & base : _infoManager.getOwnedBases())
+		{
+			if (_infoManager.closeEnough(base.first, BWAPI::Position(_infoManager.getMainPosition())) || _infoManager.closeEnough(base.first, BWAPI::Position(_infoManager.getNatPosition())))
+				continue;
+
+			if (base.second->getRemainingMinerals() == 0)
+				continue;
+
+			bool hasBunker = false;
+			for (auto bunker : _infoManager.getBunkers())
+			{
+				if (!bunker || !bunker->exists())
+					continue;
+				if (bunker->getDistance(base.first) < bunkerSearchRadius)
+				{
+					hasBunker = true;
+					break;
+				}
+			}
+
+			bool alreadyQueued = false;
+			for (auto & item : _queue)
+			{
+				if (item == BWAPI::UnitTypes::Terran_Bunker)
+				{
+					alreadyQueued = true;
+					break;
+				}
+			}
+
+			if (!hasBunker && !alreadyQueued)
+			{
+				_queue.push_back(BWAPI::UnitTypes::Terran_Bunker);
+				_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() +
+					BWAPI::UnitTypes::Terran_Bunker.mineralPrice());
+				break;
+			}
+		}
 	}
 }
 
@@ -1548,7 +1636,7 @@ void insanitybot::BuildOrder::MechAllIn(InformationManager & _infoManager)
 			_infoManager.setReservedGas(_infoManager.getReservedGas() + BWAPI::UnitTypes::Terran_Armory.gasPrice());
 		}
 
-		if (_infoManager.shouldExpand() || BWAPI::Broodwar->getFrameCount() > 12000)
+		if (_infoManager.shouldExpand() || BWAPI::Broodwar->getFrameCount() > 10000)
 		{
 			_infoManager.setStrategy("Mech");
 
