@@ -12,5 +12,5 @@ After some time I decided I wanted to build from the ground up and thus this pro
 
 ## Thanks To
 - All of the contributors of [BWAPI](https://github.com/bwapi/bwapi).
-- Igor Dimitrijevic for [BWEM](https://github.com/N00byEdge/BWEM-community).
+- Igor Dimitrijevic for [BWEM](https://bwem.sourceforge.net/).
 - The Brood War bot community as a whole for continuous help, support, and encouragement.
