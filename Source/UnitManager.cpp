@@ -82,6 +82,8 @@ void UnitManager::update(InformationManager & _infoManager)
 	if (stratIsBio)
 	{	
 		assignBio(_infoManager);
+		if (_infoManager.bioDropsPostDrop())
+			assignAir(_infoManager);
 	}
 	else if (stratIsMech)
 	{	
@@ -627,7 +629,7 @@ void UnitManager::update(InformationManager & _infoManager)
 	// Our all encompassing All In Squad
 	if (_allInSquad.size())
 	{
-		if (_infoManager.getStrategy() == "MechAllIn" || _infoManager.isTwoBasePlay(_infoManager.getStrategy()))
+		if (_infoManager.getStrategy() == "VultureRush" || _infoManager.isTwoBasePlay(_infoManager.getStrategy()))
 		{
 			for (auto & squad : _allInSquad)
 			{
@@ -635,24 +637,47 @@ void UnitManager::update(InformationManager & _infoManager)
 					BWAPI::Broodwar->getFrameCount() >= 12000)
 				{
 					squad.setGoodToAttack(true);
-					squad.setHaveGathered(true);
+					squad.setHaveGathered(false);
 				}
 
 				if (squad.isGoodToAttack())
 				{
 					BWAPI::Position forwardPosition = getForwardPoint(_infoManager);
 
-					if (_infoManager.getEnemyBases().size())
+					if (!squad.haveGatheredAtForwardPoint())
 					{
-						squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
-					}
-					else if (_infoManager.getEnemyBuildingPositions().size())
-					{
-						squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
+						squad.attack(forwardPosition, forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
+
+						for (auto marine : squad.getMarines())
+						{
+							if (marine && marine->exists())
+							{
+								if (marine->getDistance(forwardPosition) < 200)
+								{
+									squad.setHaveGathered(true);
+								}
+							}
+						}
 					}
 					else
 					{
-						squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
+						if (squad.numVultures() + BWAPI::Broodwar->self()->deadUnitCount(BWAPI::UnitTypes::Terran_Vulture) > 12 && squad.haveGatheredAtForwardPoint())
+						{
+							if (_infoManager.getEnemyBases().size())
+							{
+								squad.attack(_infoManager.getEnemyBases().begin()->first, forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
+							}
+							else if (_infoManager.getEnemyBuildingPositions().size())
+							{
+								squad.attack(_infoManager.getEnemyBuildingPositions().front(), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
+							}
+							else
+							{
+								squad.attack(BWAPI::Position(BWAPI::Position(nextUp).x, BWAPI::Position(nextUp).y), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
+							}
+						}
+						else
+							squad.attack(_infoManager.getEnemyNaturalPos(), forwardPosition, _flareBD, _infoManager.getEnemyBases().size());
 					}
 				}
 				else
@@ -660,7 +685,7 @@ void UnitManager::update(InformationManager & _infoManager)
 					if (_infoManager.getBunkers().size())
 						squad.gather(_infoManager.getBunkers().front()->getPosition(), _flareBD);
 					else
-						squad.gather(BWAPI::Position(_infoManager.getMainPosition()), _flareBD);
+						squad.gather(BWAPI::Position(_infoManager.getNaturalChokePos()), _flareBD);
 				}
 			}
 		}
@@ -850,7 +875,7 @@ void UnitManager::update(InformationManager & _infoManager)
 	{
 		for (auto & squad : _BCsquad)
 		{
-			if (!squad.isGoodToAttack() && _infoManager.getAggression() && squad.numBCs() == 4)
+			if (!squad.isGoodToAttack() && _infoManager.getAggression() && squad.numBCs() == 2)
 			{
 				squad.setGoodToAttack(true);
 			}
@@ -932,6 +957,8 @@ void UnitManager::update(InformationManager & _infoManager)
 
 			if (targetSuppressed && _infoManager.getEnemyBases().size())
 				squad.setSquadDropTarget(_infoManager.getEnemyBases().begin()->first);
+			else if (targetSuppressed && !_infoManager.getEnemyBases().size() && _infoManager.getEnemyBuildingPositions().size())
+				squad.setSquadDropTarget(_infoManager.getEnemyBuildingPositions().front());
 		}
 
 		
@@ -1733,7 +1760,7 @@ bool insanitybot::UnitManager::assignAirSquad(BWAPI::Unit unassigned)
 {
 	for (auto & squad : _BCsquad)
 	{
-		if (unassigned->getType() == BWAPI::UnitTypes::Terran_Battlecruiser && squad.numBCs() >= 4)
+		if (unassigned->getType() == BWAPI::UnitTypes::Terran_Battlecruiser && squad.numBCs() >= 2)
 			continue;
 
 		if (unassigned->getType() == BWAPI::UnitTypes::Terran_Battlecruiser)
@@ -1930,7 +1957,7 @@ void UnitManager::assignAllIn(InformationManager & _infoManager)
 
 		if (marine.first->isLoaded() || loading) continue;
 
-		if (marine.second == 0 && _infoManager.getStrategy() != "MechAllIn")
+		if (marine.second == 0)
 		{
 			if (assignSquad(marine.first, false, true))
 				marine.second = 1;
@@ -2464,6 +2491,10 @@ void insanitybot::UnitManager::handleDropships(InformationManager & _infoManager
 			{
 				if (!_infoManager.closeEnough(dropship.first->getPosition(), BWAPI::Position(_infoManager.getMainPosition()) - BWAPI::Position(100, 100)))
 					dropship.first->move(BWAPI::Position(_infoManager.getMainPosition()) - BWAPI::Position(100, 100));
+				
+				// We only want to "doom drop" once per game as it takes too long and too many units to do it again effectively without risking the main force.
+				if (_infoManager.getStrategy() == "BioDrops" && !_infoManager.bioDropsPostDrop())
+					_infoManager.setBioDropsPostDrop(true);
 
 				int numDead = 0;
 

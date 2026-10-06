@@ -195,6 +195,7 @@ void insanitybot::BuildOrder::Nuke(InformationManager & _infoManager)
 	int numEngiBaysFinished = _infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Engineering_Bay);
 	int numOwnedBases = _infoManager.getOwnedBases().size();
 	int numMarines = _infoManager.getMarines().size();
+	int numBunkers = _infoManager.getBunkers().size();
 	bool hasAcademy = _infoManager.getAcademy().size();
 	bool hasScience = _infoManager.getScience().size();
 
@@ -285,12 +286,12 @@ void insanitybot::BuildOrder::Nuke(InformationManager & _infoManager)
 		// 1st expansion
 		if (_infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Marine) > 0 && numOwnedBases < 2)
 		{
-			if (_infoManager.getBunkers().size() && !_infoManager.closeEnough((*_infoManager.getBunkers().begin())->getPosition(), BWAPI::Position(_infoManager.getNatBunkerPos())))
+			if (numBunkers && !_infoManager.closeEnough((*_infoManager.getBunkers().begin())->getPosition(), BWAPI::Position(_infoManager.getNatBunkerPos())))
 			{
 				_queue.push_back(BWAPI::UnitTypes::Terran_Bunker);
 				_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Bunker.mineralPrice());
 			}
-			else if (!_infoManager.getBunkers().size())
+			else if (!numBunkers)
 			{
 				_queue.push_back(BWAPI::UnitTypes::Terran_Bunker);
 				_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Bunker.mineralPrice());
@@ -387,6 +388,13 @@ void insanitybot::BuildOrder::Nuke(InformationManager & _infoManager)
 				break;
 			}
 		}
+	}
+
+	// Bunker for greed build
+	if (numRaxFinished && _infoManager.getInitialStrategy() == "DCC" && !_self->deadUnitCount(BWAPI::UnitTypes::Terran_Bunker) && !numBunkers)
+	{
+		_queue.push_back(BWAPI::UnitTypes::Terran_Bunker);
+		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Bunker.mineralPrice());
 	}
 }
 
@@ -582,16 +590,24 @@ void insanitybot::BuildOrder::BioDrops(InformationManager & _infoManager)
 /**************************************************
  * CC first greed
 ***************************************************/
-void insanitybot::BuildOrder::GreedMech(InformationManager & _infoManager)
+void insanitybot::BuildOrder::DCC(InformationManager & _infoManager)
 {
 	std::list<BWAPI::UnitType> & _queue = _infoManager.getQueue();
 	
 	// 1st expansion
-	if (_infoManager.getWorkers().size() >= 13 && _infoManager.getOwnedBases().size() < 2)
+	if (_infoManager.getWorkers().size() >= 12 && _infoManager.getOwnedBases().size() < 2)
 	{
 		_queue.push_back(BWAPI::UnitTypes::Terran_Command_Center);
 		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Command_Center.mineralPrice());
-		_infoManager.setStrategy("Mech");
+		if (_infoManager.getEnemyRace() == BWAPI::Races::Zerg)
+		{
+
+			_infoManager.setStrategy("Nuke");
+		}
+		else
+		{
+			_infoManager.setStrategy("Mech");
+		}
 	}
 }
 
@@ -616,6 +632,7 @@ void insanitybot::BuildOrder::Mech(InformationManager & _infoManager)
 	int numMarines =			_infoManager.getMarines().size();
 	bool hasAcademy =			_infoManager.getAcademy().size();
 	bool hasScience =			_infoManager.getScience().size();
+	bool queuedBunker =			false;
 
 	if (!_infoManager.hasInitialBarracks())
 	{
@@ -644,7 +661,7 @@ void insanitybot::BuildOrder::Mech(InformationManager & _infoManager)
 		// second factory, engibay, academy
 		else if (numFactoryFinished == 1 && numFactoryTotal == 1 && ((numMachineShopTotal &&
 			(_self->isResearching(BWAPI::TechTypes::Tank_Siege_Mode) || _self->hasResearched(BWAPI::TechTypes::Tank_Siege_Mode)) &&
-			numOwnedBases > 1) || (_infoManager.getInitialStrategy() == "GreedMech" && _self->minerals() > 200 && _self->gas() > 100)))
+			numOwnedBases > 1) || (_infoManager.getInitialStrategy() == "DCC" && _self->minerals() > 200 && _self->gas() > 100)))
 		{
 			_queue.push_back(BWAPI::UnitTypes::Terran_Factory);
 			_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Factory.mineralPrice());
@@ -686,6 +703,12 @@ void insanitybot::BuildOrder::Mech(InformationManager & _infoManager)
 				_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Armory.mineralPrice());
 				_infoManager.setReservedGas(_infoManager.getReservedGas() + BWAPI::UnitTypes::Terran_Armory.gasPrice());
 			}
+
+			if (!hasAcademy)
+			{
+				_queue.push_back(BWAPI::UnitTypes::Terran_Academy);
+				_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Academy.mineralPrice());
+			}
 		}
 
 		// Starport
@@ -706,7 +729,7 @@ void insanitybot::BuildOrder::Mech(InformationManager & _infoManager)
 
 
 		// 1st expansion
-		if ((numMarines > 0 || _self->deadUnitCount(BWAPI::UnitTypes::Terran_Marine) == 4) &&
+		if ((numMarines > 0 || _self->deadUnitCount(BWAPI::UnitTypes::Terran_Marine) >= 4) &&
 			numOwnedBases < 2 && !_infoManager.shouldHaveDefenseSquad(false) &&
 			(_self->hasResearched(BWAPI::TechTypes::Tank_Siege_Mode) || _self->isResearching(BWAPI::TechTypes::Tank_Siege_Mode)))
 		{
@@ -714,6 +737,7 @@ void insanitybot::BuildOrder::Mech(InformationManager & _infoManager)
 			{
 				_queue.push_back(BWAPI::UnitTypes::Terran_Bunker);
 				_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Bunker.mineralPrice());
+				queuedBunker = true;
 			}
 
 
@@ -750,13 +774,15 @@ void insanitybot::BuildOrder::Mech(InformationManager & _infoManager)
 
 		// initial bunker
 		if (numRaxFinished && numFactoryTotal &&
-			_self->deadUnitCount(BWAPI::UnitTypes::Terran_Bunker) < 1 && !_infoManager.getBunkers().size())
+			_self->deadUnitCount(BWAPI::UnitTypes::Terran_Bunker) < 1 && !_infoManager.getBunkers().size() && 
+			!queuedBunker)
 		{
 			_queue.push_back(BWAPI::UnitTypes::Terran_Bunker);
 			_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Bunker.mineralPrice());
 		}
-		else if (_infoManager.getInitialStrategy() == "GreedMech" && numRaxFinished &&
-			_self->deadUnitCount(BWAPI::UnitTypes::Terran_Bunker) < 1 && !_infoManager.getBunkers().size())
+		else if (_infoManager.getInitialStrategy() == "DCC" && numRaxFinished &&
+			_self->deadUnitCount(BWAPI::UnitTypes::Terran_Bunker) < 1 && !_infoManager.getBunkers().size() && 
+			!queuedBunker)
 		{
 			_queue.push_back(BWAPI::UnitTypes::Terran_Bunker);
 			_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Bunker.mineralPrice());
@@ -765,7 +791,7 @@ void insanitybot::BuildOrder::Mech(InformationManager & _infoManager)
 		// Geysers
 		if (numRaxTotal && _infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Refinery) < _infoManager.numGeyserBases() &&
 			(_infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Command_Center) >= _infoManager.numGeyserBases() ||
-				(_infoManager.getInitialStrategy() == "GreedMech" && _infoManager.getOwnedBases().size() == 2)))
+				(_infoManager.getInitialStrategy() == "DCC" && _infoManager.getOwnedBases().size() == 2)))
 		{
 			_queue.push_back(BWAPI::UnitTypes::Terran_Refinery);
 			_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Refinery.mineralPrice());
@@ -1568,10 +1594,11 @@ void insanitybot::BuildOrder::OneFacAllIn(InformationManager & _infoManager)
 }
 
 // Limited bio mech all in
-void insanitybot::BuildOrder::MechAllIn(InformationManager & _infoManager)
+void insanitybot::BuildOrder::VultureRush(InformationManager & _infoManager)
 {
 	std::list<BWAPI::UnitType> & _queue = _infoManager.getQueue();
 
+	int numWorkers = _infoManager.getWorkers().size();
 	int numRaxFinished = _infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Barracks);
 	int numRaxTotal = _infoManager.getBarracks().size();
 	int numFactoryFinished = _infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Factory);
@@ -1584,84 +1611,60 @@ void insanitybot::BuildOrder::MechAllIn(InformationManager & _infoManager)
 	int numOwnedBases = _infoManager.getOwnedBases().size();
 	int numMarines = _infoManager.getMarines().size();
 	int numTanks = _infoManager.getTanks().size();
+	int numSupplyDepots = _infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot);
 	bool hasAcademy = _infoManager.getAcademy().size();
 	bool hasScience = _infoManager.getScience().size();
 
-	if (!_infoManager.hasInitialBarracks() && _infoManager.getWorkers().size() >= 8 && _infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) > 0)
+	// Trying out a more micro managed build order.
+	if (numWorkers >= 8 && !numSupplyDepots)
 	{
+		_queue.push_back(BWAPI::UnitTypes::Terran_Supply_Depot);
+		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());
+	}
+
+	if (!_infoManager.hasInitialBarracks() && numWorkers >= 10 && numSupplyDepots > 0)
+	{
+		_queue.push_back(BWAPI::UnitTypes::Terran_Refinery);
+		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Refinery.mineralPrice());
 		_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
 		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
 		_infoManager.setInitialBarracks(true);
 	}
-	else
+	else if (numRaxFinished && !numFactoryTotal && _self->supplyUsed() >= 30)
 	{
-		if (numRaxTotal && _infoManager.getRefineries().size() < 1 && _infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) > 0 &&
-			_self->minerals() > 90)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Refinery);
-			_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Refinery.mineralPrice());
-		}
-		else if (((numRaxFinished && _self->minerals() > 300 && _self->hasResearched(BWAPI::TechTypes::Tank_Siege_Mode)) ||
-			_infoManager.enemyHasAir()) && !numEngiBaysTotal)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Engineering_Bay);
-			_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Engineering_Bay.mineralPrice());
-		}
-
-		if (numRaxFinished && _self->gas() > 100 && numFactoryTotal < 1)
-		{
+		_queue.push_back(BWAPI::UnitTypes::Terran_Supply_Depot);
+		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());
+		_queue.push_back(BWAPI::UnitTypes::Terran_Factory);
+		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Factory.mineralPrice());
+		_infoManager.setReservedGas(_infoManager.getReservedGas() + BWAPI::UnitTypes::Terran_Factory.gasPrice());
+	}
+	else if (numRaxFinished && numFactoryTotal < 2 && _self->supplyUsed() >= 34)
+	{
 			_queue.push_back(BWAPI::UnitTypes::Terran_Factory);
 			_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Factory.mineralPrice());
 			_infoManager.setReservedGas(_infoManager.getReservedGas() + BWAPI::UnitTypes::Terran_Factory.gasPrice());
-		}
-		else if (numRaxFinished && numFactoryTotal < 3 && numFactoryTotal >= 1 &&
-			numMachineshopTotal && _infoManager.getVultures().size() > 2)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Factory);
-			_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Factory.mineralPrice());
-			_infoManager.setReservedGas(_infoManager.getReservedGas() + BWAPI::UnitTypes::Terran_Factory.gasPrice());
-		}
+	}
+	else if (numSupplyDepots == 2 && _self->supplyUsed() >= 40)
+	{
+		_queue.push_back(BWAPI::UnitTypes::Terran_Supply_Depot);
+		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());
+	}
+	else if (numSupplyDepots == 3 && _self->supplyUsed() >= 56)
+	{
+		_queue.push_back(BWAPI::UnitTypes::Terran_Supply_Depot);
+		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());
+	}
+	else if (numSupplyDepots == 4 && _self->supplyUsed() >= 62)
+	{
+		_queue.push_back(BWAPI::UnitTypes::Terran_Supply_Depot);
+		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());
+	}
 
-		if (numRaxFinished && numFactoryTotal && !hasAcademy && _infoManager.getVultures().size() > 6 &&
-			(_self->isResearching(BWAPI::TechTypes::Spider_Mines) || _self->hasResearched(BWAPI::TechTypes::Spider_Mines)))
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Academy);
-			_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Academy.mineralPrice());
-		}
-
-		if (numFactoryTotal && _self->minerals() > 500 && _self->gas() > 300 && numArmoriesTotal < 1)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Armory);
-			_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Armory.mineralPrice());
-			_infoManager.setReservedGas(_infoManager.getReservedGas() + BWAPI::UnitTypes::Terran_Armory.gasPrice());
-		}
-
-		if (_infoManager.shouldExpand() || BWAPI::Broodwar->getFrameCount() > 10000)
-		{
-			_infoManager.setStrategy("Mech");
-
-			_infoManager.setAggression(false);
-
-			_queue.push_back(BWAPI::UnitTypes::Terran_Command_Center);
-			_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Command_Center.mineralPrice());
-
-			if (!numEngiBaysTotal)
-			{
-				_queue.push_back(BWAPI::UnitTypes::Terran_Engineering_Bay);
-				_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Engineering_Bay.mineralPrice());
-			}
-
-			return;
-		}
-
-		if ((_infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Marine) > 0 && _self->deadUnitCount(BWAPI::UnitTypes::Terran_Marine) <= 4) &&
-			numRaxFinished &&
-			_self->deadUnitCount(BWAPI::UnitTypes::Terran_Bunker) < 1 && !_infoManager.getBunkers().size() &&
-			!_infoManager.shouldHaveDefenseSquad(false) && numFactoryTotal)
-		{
-			_queue.push_back(BWAPI::UnitTypes::Terran_Bunker);
-			_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Bunker.mineralPrice());
-		}
+	if (_self->deadUnitCount(BWAPI::UnitTypes::Terran_Vulture) > 6)
+	{
+		_infoManager.setStrategy("Mech");
+		_infoManager.setAggression(false);
+		return;
 	}
 }
 

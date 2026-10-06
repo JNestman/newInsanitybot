@@ -137,7 +137,7 @@ namespace insanitybot
 
 		bool tooSpreadOut();
 
-		void groundKiteMicro(BWAPI::Unit & friendly, BWAPI::Position enemy);
+		void vultureKiteMicro(BWAPI::Unit vulture, BWAPI::Unit target);
 
 		BWAPI::Position stormDodge(BWAPI::Position friendly, BWAPI::Position stormPos);
 		BWAPI::Position scarabDodge(BWAPI::Position friendly, BWAPI::Position scarabTargetPos);

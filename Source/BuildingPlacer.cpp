@@ -366,7 +366,7 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 	else if (building == BWAPI::UnitTypes::Terran_Bunker)
 	{
 		if (_infoManager.isOneBasePlay(_infoManager.getStrategy()) &&
-			_infoManager.getStrategy() != "MechAllIn" &&
+			_infoManager.getStrategy() != "VultureRush" &&
 			!_infoManager.isExpanding())
 		{
 			// Original main base bunker placement — untouched

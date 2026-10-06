@@ -33,6 +33,9 @@ insanitybot::InformationManager::InformationManager()
 	_waitASec = 0;
 	_pauseGas = false;
 
+	// BioDrops flag
+	_bioDropsSwitchToPostDrop = false;
+
 	for (auto & u : BWAPI::Broodwar->self()->getUnits())
 	{
 		if (!u || !u->exists()) continue;
@@ -45,7 +48,8 @@ insanitybot::InformationManager::InformationManager()
 	}
 
 	_readWrite->initialize();
-	_strategy = _readWrite->getChosenBuildOrder(_mainNotTilePos);
+	//_strategy = _readWrite->getChosenBuildOrder(_mainNotTilePos);
+	_strategy = "VultureRush";
 	_buildOrder->initialize(_strategy);
 	_ourInitialStrategy = _strategy;
 
@@ -66,7 +70,7 @@ InformationManager & InformationManager::Instance()
 void InformationManager::initBuildOrderDispatch()
 {
 	_buildOrderDispatch["Mech"] = [](BuildOrder & bo, InformationManager & im) { bo.Mech(im); };
-	_buildOrderDispatch["GreedMech"] = [](BuildOrder & bo, InformationManager & im) { bo.GreedMech(im); };
+	_buildOrderDispatch["DCC"] = [](BuildOrder & bo, InformationManager & im) { bo.DCC(im); };
 	_buildOrderDispatch["MechVT"] = [](BuildOrder & bo, InformationManager & im) { bo.MechVT(im); };
 	_buildOrderDispatch["FiveFacGol"] = [](BuildOrder & bo, InformationManager & im) { bo.FiveFacGol(im); };
 	_buildOrderDispatch["Nuke"] = [](BuildOrder & bo, InformationManager & im) { bo.Nuke(im); };
@@ -75,7 +79,7 @@ void InformationManager::initBuildOrderDispatch()
 	_buildOrderDispatch["8RaxDef"] = [](BuildOrder & bo, InformationManager & im) { bo.EightRaxDef(im); };
 	_buildOrderDispatch["1BaseMech"] = [](BuildOrder & bo, InformationManager & im) { bo.OneBaseMech(im); };
 	_buildOrderDispatch["OneFacAllIn"] = [](BuildOrder & bo, InformationManager & im) { bo.OneFacAllIn(im); };
-	_buildOrderDispatch["MechAllIn"] = [](BuildOrder & bo, InformationManager & im) { bo.MechAllIn(im); };
+	_buildOrderDispatch["VultureRush"] = [](BuildOrder & bo, InformationManager & im) { bo.VultureRush(im); };
 	_buildOrderDispatch["SKTerran"] = [](BuildOrder & bo, InformationManager & im) { bo.SKTerran(im); };
 }
 
@@ -310,6 +314,7 @@ void InformationManager::update()
 	checkLostEnemyBases();
 	updateScans();
 	cleanZombieTasks();
+
 }
 
 // ============================================================
@@ -336,7 +341,7 @@ void InformationManager::updateAggression()
 	{
 		setAggression(true);
 	}
-	else if (isAllIn(_strategy) && (_tanks.size() > 1 || (_strategy == "MechAllIn" && _vultures.size() > 6)))
+	else if (isAllIn(_strategy) && (_tanks.size() > 1 || (_strategy == "VultureRush" && _vultures.size() > 4)))
 	{
 		setAggression(true);
 	}
@@ -473,7 +478,7 @@ void InformationManager::updateRushDetection()
 	if (!_enemyRushing) return;
 	if (!isTwoBasePlay(_strategy)) return;
 	if (getOwnedBases().size() >= 2) return;
-	if (_buildOrder->getInitialStrategy() == "MechAllIn") return;
+	if (_buildOrder->getInitialStrategy() == "VultureRush") return;
 
 	// Flush the queue and pivot strategy
 	for (auto & item : _queue)
@@ -1510,7 +1515,7 @@ BWAPI::Position InformationManager::getDropLocation(BWAPI::Unit dropship)
 int InformationManager::numLoadedDropsWanted()
 {
 	if (isMech(_strategy))    return 2;
-	if (_strategy == "BioDrops") return 4;
+	if (_strategy == "BioDrops" && !_bioDropsSwitchToPostDrop) return 4;
 	return 1;
 }
 
