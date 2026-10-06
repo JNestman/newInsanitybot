@@ -25,7 +25,7 @@ namespace insanitybot
 		void SKTerran(InformationManager & _infoManager);
 		void Nuke(InformationManager & _infoManager);
 		void BioDrops(InformationManager & _infoManager);
-		void GreedMech(InformationManager & _infoManager);
+		void DCC(InformationManager & _infoManager);
 		void Mech(InformationManager & _infoManager);
 		void MechVT(InformationManager & _infoManager);
 		void FiveFacGol(InformationManager & _infoManager);
@@ -33,7 +33,7 @@ namespace insanitybot
 		void EightRaxDef(InformationManager & _infoManager);
 		void OneBaseMech(InformationManager & _infoManager);
 		void OneFacAllIn(InformationManager & _infoManager);
-		void MechAllIn(InformationManager & _infoManager);
+		void VultureRush(InformationManager & _infoManager);
 		
 		static BuildOrder & Instance();
 	};

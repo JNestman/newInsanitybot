@@ -14,6 +14,7 @@
 #include <assert.h>
 #include <cstdint>
 #include <string>
+#include <stdexcept>
 
 namespace BWEM
 {
@@ -80,7 +81,6 @@ const int min_tiles_between_Bases = 10;
 const int max_tiles_between_StartingLocation_and_its_AssignedBase = 3;
 
 } // namespace detail
-
 
 } // namespace BWEM
 

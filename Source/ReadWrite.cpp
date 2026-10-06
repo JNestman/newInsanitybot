@@ -9,10 +9,10 @@ insanitybot::ReadWrite::ReadWrite()
 
 void insanitybot::ReadWrite::initialize()
 {
-	buildOrders[BWAPI::Races::Zerg] = { "Nuke", "BioDrops", "FiveFacGol", "OneFacAllIn" };
-	buildOrders[BWAPI::Races::Protoss] = { "OneFacAllIn", "Mech", "GreedMech" };
-	buildOrders[BWAPI::Races::Terran] = { "MechVT", "MechAllIn", "Mech", "GreedMech" };
-	buildOrders[BWAPI::Races::Unknown] = { "OneFacAllIn", "Mech", "MechAllIn" };
+	buildOrders[BWAPI::Races::Zerg] = { "Nuke", "BioDrops", "FiveFacGol", "OneFacAllIn", "DCC" };
+	buildOrders[BWAPI::Races::Protoss] = { "OneFacAllIn", "Mech", "DCC", "VultureRush" };
+	buildOrders[BWAPI::Races::Terran] = { "MechVT", "VultureRush", "Mech", "DCC" };
+	buildOrders[BWAPI::Races::Unknown] = { "OneFacAllIn", "Mech", "VultureRush", "DCC" };
 }
 
 std::vector<MatchData> insanitybot::ReadWrite::readCompactMatchData()

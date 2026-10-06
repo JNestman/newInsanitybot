@@ -35,7 +35,7 @@ void CreationManager::update(InformationManager & _infoManager)
 		if (center->isUnderAttack())
 			continue;
 
-		if (_infoManager.getWorkers().size() >= 7 && _infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) < 1)
+		if (_infoManager.getWorkers().size() >= 7 && _infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) < 1 && _infoManager.getStrategy() != "VultureRush")
 			continue;
 
 		if (wantSilo && center->isIdle() && _infoManager.getScience().size() && _infoManager.covertOpsDone() &&
@@ -118,8 +118,16 @@ void CreationManager::update(InformationManager & _infoManager)
 		for (BWAPI::UnitType unit : _infoManager.getQueue())
 		{
 			// Trying to add supply seperately to the reserved queue without messing up its separate handling
-			if (unit == BWAPI::UnitTypes::Terran_Supply_Depot)
+			if (unit == BWAPI::UnitTypes::Terran_Supply_Depot && (_infoManager.getStrategy() != "VultureRush" || _self->supplyTotal() >= 84))
 				continue;
+			else if (unit == BWAPI::UnitTypes::Terran_Supply_Depot && _infoManager.getStrategy() == "VultureRush" && _self->supplyTotal() < 84)
+			{
+				BWAPI::TilePosition targetSupplyLocation = _buildingPlacer.getSupplyLocation(BWAPI::UnitTypes::Terran_Supply_Depot, _infoManager);
+				WorkerManager::Instance().supplyConstruction(_infoManager.getWorkers(), targetSupplyLocation, _infoManager.getReservedMinerals(), _infoManager.getOwnedBases());
+				WorkerManager::Instance().setLastCheckSupply(BWAPI::Broodwar->getFrameCount());
+				_constructionQueue.insert(std::pair<BWAPI::UnitType, int>(unit, Broodwar->getFrameCount()));
+				continue;
+			}
 
 			// This may be flawed but it makes sense for now. May run into problems if we have a large pool of reserved minerals/gas but it remains to be seen.
 			if (unit.isBuilding() && mineralsLeft >= unit.mineralPrice() && gasLeft >= unit.gasPrice())
@@ -306,7 +314,7 @@ void CreationManager::update(InformationManager & _infoManager)
 
 	for (auto & rax : _infoManager.getBarracks())
 	{
-		if (_infoManager.isBio(ourStrat) || (_infoManager.isAllIn(ourStrat) && ourStrat != "MechAllIn"))
+		if (_infoManager.isBio(ourStrat) || _infoManager.isAllIn(ourStrat))
 		{
 			if (rax->exists() && rax->isIdle())
 			{
@@ -371,6 +379,17 @@ void CreationManager::update(InformationManager & _infoManager)
 						supplyLeft -= BWAPI::UnitTypes::Terran_Marine.supplyRequired();
 					}
 				}
+				else if (rax->isIdle() && _infoManager.getInitialStrategy() == "vultureRush" && 
+					_infoManager.getMarines().size() < 4)
+				{
+					if (mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Marine.mineralPrice() &&
+						BWAPI::UnitTypes::Terran_Marine.supplyRequired() <= supplyLeft)
+					{
+						rax->train(BWAPI::UnitTypes::Terran_Marine);
+						mineralsLeft = mineralsLeft - BWAPI::UnitTypes::Terran_Marine.mineralPrice();
+						supplyLeft -= BWAPI::UnitTypes::Terran_Marine.supplyRequired();
+					}
+				}
 				else if (!rax->isLifted() && rax->isIdle())
 				{
 					rax->lift();
@@ -382,9 +401,13 @@ void CreationManager::update(InformationManager & _infoManager)
 	// Roughly, we want the number of machines shops to equal our refineries
 	int numMachineShops = _infoManager.getMachineShops().size();
 	int numShopsWanted = 0;
-	if (_infoManager.isAirStrat(ourStrat) || ourStrat == "MechAllIn")
+	if (_infoManager.isAirStrat(ourStrat))
 	{
 		numShopsWanted = 1;
+	}
+	else if (ourStrat == "VultureRush")
+	{
+		numShopsWanted = 2;
 	}
 	else
 	{
@@ -428,7 +451,7 @@ void CreationManager::update(InformationManager & _infoManager)
 			else if (!factory->canBuildAddon() && factory->isIdle() &&
 				mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.mineralPrice() &&
 				gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.gasPrice() &&
-				ourStrat != "MechAllIn" &&
+				ourStrat != "VultureRush" &&
 				BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.supplyRequired() <= supplyLeft)
 			{
 				factory->train(BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode);
@@ -436,7 +459,7 @@ void CreationManager::update(InformationManager & _infoManager)
 				gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.gasPrice();
 				supplyLeft -= BWAPI::UnitTypes::Terran_Siege_Tank_Tank_Mode.supplyRequired();
 			}
-			else if (factory->isIdle() && (factory->canBuildAddon() || ourStrat == "MechAllIn") &&
+			else if (factory->isIdle() && (factory->canBuildAddon() || ourStrat == "VultureRush") &&
 				mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Vulture.mineralPrice() &&
 				BWAPI::UnitTypes::Terran_Vulture.supplyRequired() <= supplyLeft)
 			{
@@ -511,7 +534,7 @@ void CreationManager::update(InformationManager & _infoManager)
 			else if (starport->getAddon() != NULL)
 			{
 				if (_infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Science_Facility) && _infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Physics_Lab) &&
-					ourStrat == "BCMeme" &&
+					(ourStrat == "BCMeme" || (ourStrat == "BioDrops" && _infoManager.bioDropsPostDrop())) && _infoManager.getBCs().size() < 4 &&
 					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Battlecruiser.mineralPrice() &&
 					gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Battlecruiser.gasPrice() &&
 					BWAPI::UnitTypes::Terran_Battlecruiser.supplyRequired() <= supplyLeft)
@@ -709,7 +732,8 @@ void CreationManager::update(InformationManager & _infoManager)
 				gasLeft = gasLeft - BWAPI::UnitTypes::Terran_Covert_Ops.gasPrice();
 				break;
 			}
-			else if (ourStrat == "BCMeme" && scienceFacility->canBuildAddon() &&
+			else if ((ourStrat == "BCMeme" || (ourStrat == "BioDrops" && _infoManager.bioDropsPostDrop())) && 
+				scienceFacility->canBuildAddon() &&
 				mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Physics_Lab.mineralPrice() &&
 				gasLeft - _infoManager.getReservedGas() >= BWAPI::UnitTypes::Terran_Physics_Lab.gasPrice())
 			{
@@ -735,7 +759,7 @@ void CreationManager::update(InformationManager & _infoManager)
 	{
 		if (machineShop->exists() && machineShop->isIdle())
 		{
-			if (ourStrat == "MechAllIn")
+			if (ourStrat == "VultureRush")
 			{
 				if (!_self->hasResearched(BWAPI::TechTypes::Spider_Mines) && !_self->isResearching(BWAPI::TechTypes::Spider_Mines) &&
 					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::TechTypes::Spider_Mines.mineralPrice() &&
@@ -746,7 +770,7 @@ void CreationManager::update(InformationManager & _infoManager)
 					gasLeft = gasLeft - BWAPI::TechTypes::Spider_Mines.gasPrice();
 					break;
 				}
-				else if (_self->hasResearched(BWAPI::TechTypes::Spider_Mines) && 
+				else if ((_self->hasResearched(BWAPI::TechTypes::Spider_Mines) || _self->isResearching(BWAPI::TechTypes::Spider_Mines)) && 
 					!_self->getUpgradeLevel(BWAPI::UpgradeTypes::Ion_Thrusters) && !_self->isUpgrading(BWAPI::UpgradeTypes::Ion_Thrusters) &&
 					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UpgradeTypes::Ion_Thrusters &&
 					gasLeft - _infoManager.getReservedGas() >= BWAPI::UpgradeTypes::Ion_Thrusters)
@@ -834,6 +858,17 @@ void CreationManager::update(InformationManager & _infoManager)
 					gasLeft = gasLeft - BWAPI::UpgradeTypes::Moebius_Reactor.gasPrice();
 				}
 			}
+			else if (addon->getType() == BWAPI::UnitTypes::Terran_Physics_Lab)
+			{
+				if (!_self->hasResearched(BWAPI::TechTypes::Yamato_Gun) && !_self->isResearching(BWAPI::TechTypes::Yamato_Gun) &&
+					mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::TechTypes::Yamato_Gun.mineralPrice() &&
+					gasLeft - _infoManager.getReservedGas() >= BWAPI::TechTypes::Yamato_Gun.gasPrice())
+				{
+					addon->research(BWAPI::TechTypes::Yamato_Gun);
+					mineralsLeft = mineralsLeft - BWAPI::TechTypes::Yamato_Gun.mineralPrice();
+					gasLeft = gasLeft - BWAPI::TechTypes::Yamato_Gun.gasPrice();
+				}
+			}
 		}
 	}
 
@@ -864,6 +899,9 @@ void CreationManager::update(InformationManager & _infoManager)
 		_infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) == 1)
 		return;*/
 
+	if (_infoManager.getStrategy() == "VultureRush" && _self->supplyTotal() <= 84)
+		return;
+
 	if (_self->supplyUsed() == 16 && _infoManager.getQueue().empty() && _self->minerals() >= 100 &&
 		!_infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) &&
 		_infoManager.isTwoBasePlay(ourStrat))
@@ -877,7 +915,7 @@ void CreationManager::update(InformationManager & _infoManager)
 	}
 	else if (_self->supplyUsed() >= 28 && _infoManager.getQueue().empty() && _self->minerals() >= 100 &&
 		_infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot) < 2 &&
-		_infoManager.isTwoBasePlay(ourStrat))
+		_infoManager.isTwoBasePlay(ourStrat) && !_infoManager.isExpanding())
 	{
 		_infoManager.getQueue().push_back(BWAPI::UnitTypes::Terran_Supply_Depot);
 		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());

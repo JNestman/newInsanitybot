@@ -50,12 +50,12 @@ namespace insanitybot
 		// Variables
 		std::string											_strategy;
 		std::string											_ourInitialStrategy;
-		std::vector<std::string>							_1BaseStrat{ "8RaxDef", "8RaxAgg", "1BaseMech", "TONK", "OneFacAllIn", "BBS", "MechAllIn" };
-		std::vector<std::string>							_2BaseStrat{ "SKTerran", "Mech", "MechVT", "Nuke", "BCMeme", "BioDrops", "FiveFacGol", "GreedMech" };
+		std::vector<std::string>							_1BaseStrat{ "8RaxDef", "8RaxAgg", "1BaseMech", "TONK", "OneFacAllIn", "BBS", "VultureRush" };
+		std::vector<std::string>							_2BaseStrat{ "SKTerran", "Mech", "MechVT", "Nuke", "BCMeme", "BioDrops", "FiveFacGol", "DCC" };
 		std::vector<std::string>							_bio{ "8RaxDef", "8RaxAgg", "SKTerran", "Nuke", "BioDrops" };
-		std::vector<std::string>							_mech{ "Mech", "MechVT", "1BaseMech", "TONK", "BCMeme", "FiveFacGol", "GreedMech" };
+		std::vector<std::string>							_mech{ "Mech", "MechVT", "1BaseMech", "TONK", "BCMeme", "FiveFacGol", "DCC" };
 		std::vector<std::string>							_airStrat{ "BCMeme" };
-		std::vector<std::string>							_allIn{ "OneFacAllIn", "BBS", "MechAllIn" };
+		std::vector<std::string>							_allIn{ "OneFacAllIn", "BBS", "VultureRush" };
 
 		std::vector<std::string>							_smallMainMaps{ "731138b5b844a4a0b4a4bb4e495969fd6659414c" };
 
@@ -157,6 +157,7 @@ namespace insanitybot
 		bool												_enemyHasDtLurker;
 
 		bool												_dropping;
+		bool												_bioDropsSwitchToPostDrop;
 		bool												_targetDefended;
 		bool												_nukeDotDetected;
 		int													_waitASec;
@@ -286,6 +287,10 @@ namespace insanitybot
 		int numLoadedDropsWanted();
 		bool getDropping() { return _dropping; };
 		void setDropping(bool dropping) { _dropping = dropping; };
+
+		// BioDrops state accessor. Set to only "doom drop" once per game.
+		bool bioDropsPostDrop() { return _bioDropsSwitchToPostDrop; };
+		void setBioDropsPostDrop(bool postDrop) { _bioDropsSwitchToPostDrop = postDrop; };
 
 		bool enemyHasAir() { return _enemyHasAir; };
 		bool enemyHasDtLurker() { return _enemyHasDtLurker; };

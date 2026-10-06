@@ -174,7 +174,7 @@ void insanitybot::Squad::attack(BWAPI::Position attackPoint, BWAPI::Position for
 	* Air
 	*****************************************************************************************/
 	handleBCs(attackPoint, forwardGather, haveGathered, enemyUnits, NULL, BWAPI::Position(0, 0));
-
+	
 }
 
 /****************************************************************************************
@@ -1160,7 +1160,7 @@ void insanitybot::Squad::handleMarines(BWAPI::Position attackPoint, BWAPI::Posit
 		bool enemyInRange = closestEnemyDist <= marineRange + 16;
 
 		// True when this marine's last command was already a move/attack to
-		// the position we'd send it to — avoids reissuing identical orders.
+		// the position we'd send it to ï¿½ avoids reissuing identical orders.
 		// Evaluated per-branch below since the target position varies.
 		auto alreadyCommandedTo = [&](BWAPI::Position pos) -> bool
 		{
@@ -1175,7 +1175,7 @@ void insanitybot::Squad::handleMarines(BWAPI::Position attackPoint, BWAPI::Posit
 		{
 			if (isMaxSupply())
 			{
-				// Pure aggressive push — no formation.
+				// Pure aggressive push ï¿½ no formation.
 				// Do nothing if enemy is in range, let SC handle the attack.
 				if (!enemyInRange && !closeEnough((*marine)->getPosition(), attackPoint)
 					&& !alreadyCommandedTo(attackPoint))
@@ -1185,7 +1185,7 @@ void insanitybot::Squad::handleMarines(BWAPI::Position attackPoint, BWAPI::Posit
 			}
 			else if (tankTooFarAhead)
 			{
-				// Tank has raced ahead of the bio — push marines directly toward
+				// Tank has raced ahead of the bio ï¿½ push marines directly toward
 				// the tank to close the gap. Once within maxTankGap the arc
 				// will activate on the next frame naturally.
 				BWAPI::Position tankPos = closestTankToTarget->getPosition();
@@ -1736,15 +1736,6 @@ void insanitybot::Squad::handleVultures(BWAPI::Position attackPoint, BWAPI::Posi
 			continue;
 		}
 
-		// --- Branch: Gather point ---
-		if (gatherPoint != BWAPI::Position(0, 0))
-		{
-			if (!closeEnough(gatherPoint, vulture->first->getPosition()))
-				vulture->first->attack(gatherPoint);
-			++vulture;
-			continue;
-		}
-
 		// --- Branch: Normal attack movement ---
 		// Mine planting state machine
 		if (vulture->second > 1)
@@ -1757,10 +1748,34 @@ void insanitybot::Squad::handleVultures(BWAPI::Position attackPoint, BWAPI::Posi
 			}
 		}
 
-		if (canPlantMine(vulture->first) && shouldPlantMine(vulture->first))
+		if (!vulture->first->getUnitsInRadius(BWAPI::WeaponTypes::Fragmentation_Grenade.maxRange(), BWAPI::Filter::IsEnemy).empty())
+		{
+			BWAPI::Unit closestEnemy = NULL;
+			for (auto enemy : vulture->first->getUnitsInRadius(BWAPI::WeaponTypes::Fragmentation_Grenade.maxRange(), BWAPI::Filter::IsEnemy))
+			{
+				if (!enemy || !enemy->exists()) continue;
+				if (closestEnemy == NULL || vulture->first->getDistance(enemy) < vulture->first->getDistance(closestEnemy))
+					closestEnemy = enemy;
+			}
+
+			vultureKiteMicro(vulture->first, closestEnemy);
+			++vulture;
+			continue;
+		}
+		else if (canPlantMine(vulture->first) && shouldPlantMine(vulture->first))
 		{
 			vulture->second = BWAPI::Broodwar->getFrameCount();
 			vulture->first->useTech(BWAPI::TechTypes::Spider_Mines, vulture->first->getPosition());
+			++vulture;
+			continue;
+		}
+
+		// --- Branch: Gather point ---
+		if (gatherPoint != BWAPI::Position(0, 0))
+		{
+			if (!closeEnough(gatherPoint, vulture->first->getPosition()) && vulture->first->getGroundWeaponCooldown() == 0)
+				vulture->first->attack(gatherPoint);
+
 			++vulture;
 			continue;
 		}
@@ -1942,7 +1957,7 @@ void insanitybot::Squad::handleGhosts(BWAPI::Position attackPoint, BWAPI::Positi
 			continue;
 		}
 
-		// Nuker is managed by unitManager — skip it here in all contexts
+		// Nuker is managed by unitManager ï¿½ skip it here in all contexts
 		if ((*ghost) == nuker) { ++ghost; continue; }
 
 		// --- Branch: Attacking a neutral structure ---
@@ -2115,9 +2130,63 @@ bool insanitybot::Squad::tooSpreadOut()
 * Lets start acting like a micro bot
 * Update: Horrible. lol We'll come back to this
 ****************************************************************/
-void insanitybot::Squad::groundKiteMicro(BWAPI::Unit & friendly, BWAPI::Position enemy)
+void insanitybot::Squad::vultureKiteMicro(BWAPI::Unit vulture, BWAPI::Unit target)
 {
-	if (enemy == BWAPI::Position(0, 0))
+	if (!vulture || !target || !vulture->exists() || !target->exists()) return;
+
+	BWAPI::Broodwar->setLocalSpeed(20);
+
+	// 1. Gather distance, weapon attributes, and cooldowns
+	int distance = vulture->getDistance(target);
+	int weaponRange = vulture->getType().groundWeapon().maxRange();
+	int cooldown = vulture->getGroundWeaponCooldown();
+
+	// Account for Vulture speed upgrade (Ion Thrusters) to calculate optimal flee padding
+	double safetyPadding = vulture->getPlayer()->getUpgradeLevel(BWAPI::UpgradeTypes::Ion_Thrusters) ? 96.0 : 64.0;
+
+	// 2. Determine fleeing vector away from the target
+	BWAPI::Position targetPos = target->getPosition();
+	BWAPI::Position vulturePos = vulture->getPosition();
+
+	// Vector arithmetic to create a point exactly opposite of the threat
+	BWAPI::Position fleeVector = vulturePos - targetPos;
+	double length = vulturePos.getDistance(targetPos);
+
+	BWAPI::Position fleePos = vulturePos;
+	if (length > 0) {
+		fleePos = vulturePos + BWAPI::Position(
+			(int)(fleeVector.x / length * safetyPadding),
+			(int)(fleeVector.y / length * safetyPadding)
+		);
+	}
+
+	// 3. Finite State Machine for Attack vs. Flee
+
+	// PHASE A: Weapon is fully reloaded and target is within viable engagement envelope
+	if (cooldown == 0 && distance <= (weaponRange + 32) && target->isVisible()) {
+		// Issue attack command if not already striking
+		if (vulture->getLastCommand().getType() != BWAPI::UnitCommandTypes::Attack_Unit
+			|| vulture->getLastCommand().getTarget() != target)
+		{
+			vulture->attack(target);
+			//vulture->patrol(target->getPosition());
+		}
+	}
+	// PHASE B: Weapon is on cooldown or target is dangerously close while reloading
+	else {
+		// Prevent command spam every frame to allow SC pathfinding to compute smoothly
+		if (vulture->isStartingAttack() || vulture->isAttackFrame()) {
+			return; // Hold control for 1 frame to let the vulture attack spin-up execute
+		}
+
+		if (vulture->getLastCommand().getType() != BWAPI::UnitCommandTypes::Move
+			|| vulture->getLastCommand().getTargetPosition().getDistance(fleePos) > 16)
+		{
+			// Micro-step backward to kite the target
+			vulture->move(fleePos);
+		}
+	}
+	/*if (enemy == BWAPI::Position(0, 0))
 		return;
 
 	// Calculate the vector between the friendly and the enemy
@@ -2137,7 +2206,7 @@ void insanitybot::Squad::groundKiteMicro(BWAPI::Unit & friendly, BWAPI::Position
 	if (kiteTo.y > BWAPI::Broodwar->mapHeight())
 		kiteTo.y = BWAPI::Broodwar->mapHeight() - 5;
 
-	friendly->move(kiteTo);
+	friendly->move(kiteTo);*/
 }
 
 // Storm dodging
@@ -2311,6 +2380,7 @@ bool insanitybot::Squad::flareTarget(BWAPI::Unit medic, std::map<BWAPI::Unit, st
 			existingTarget->isDetected() &&
 			!existingTarget->isBurrowed() &&
 			!existingTarget->isCloaked() &&
+			!existingTarget->isBlind() &&
 			!existingTarget->isInvincible() &&
 			!existingTarget->isStasised();
 
@@ -2321,7 +2391,7 @@ bool insanitybot::Squad::flareTarget(BWAPI::Unit medic, std::map<BWAPI::Unit, st
 		}
 		else
 		{
-			// Target is no longer valid — drop it and resume normal orders
+			// Target is no longer valid ï¿½ drop it and resume normal orders
 			_flareBD.erase(it);
 			return false;
 		}
