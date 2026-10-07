@@ -13,7 +13,6 @@ namespace insanitybot
 	class CreationManager
 	{
 		BWAPI::Player										_self;
-		BuildingPlacer										_buildingPlacer;
 
 		std::map<BWAPI::UnitType, int>						_constructionQueue;
 		

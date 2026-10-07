@@ -10,6 +10,7 @@ namespace insanitybot
 	class BuildingPlacer
 	{
 		std::vector< std::vector<bool> > _reserveMap;
+		std::vector< std::vector<bool> > _constructionReservations;
 
 	public:
 		void initialize();
@@ -17,6 +18,8 @@ namespace insanitybot
 		void reserveTiles(BWAPI::TilePosition position, int width, int 
 		);
 		void setReserve(BWAPI::TilePosition position, int width, int height, bool flag);
+		void reserveConstructionSite(BWAPI::TilePosition position, BWAPI::UnitType building);
+		void releaseConstructionSite(BWAPI::TilePosition position, BWAPI::UnitType building);
 		bool boxOverlapsBase(int x1, int y1, int x2, int y2) const;
 		bool tileBlocksAddon(BWAPI::TilePosition position) const;
 

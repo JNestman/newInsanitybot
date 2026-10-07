@@ -1,13 +1,28 @@
 #include "WorkerManager.h"
 #include "InformationManager.h"
+#include "BuildingPlacer.h"
+#include <algorithm>
+#include <list>
 
 using namespace insanitybot;
+
+namespace
+{
+	bool buildingSitesOverlap(BWAPI::TilePosition firstPosition, BWAPI::UnitType firstType, BWAPI::TilePosition secondPosition, BWAPI::UnitType secondType)
+	{
+		return firstPosition.x < secondPosition.x + secondType.tileWidth() &&
+			firstPosition.x + firstType.tileWidth() > secondPosition.x &&
+			firstPosition.y < secondPosition.y + secondType.tileHeight() &&
+			firstPosition.y + firstType.tileHeight() > secondPosition.y;
+	}
+}
 
 void WorkerManager::initialize()
 {
 	_lastCheckSupply = 0;
 	_lastCheckBuild = 0;
 	_mineralClearer = NULL;
+	_pendingConstructions.clear();
 }
 
 void insanitybot::WorkerManager::update(InformationManager & _infoManager)
@@ -453,7 +468,7 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 
 		if (builder->isCarryingMinerals())
 		{
-			int shortest = 9999999;
+			int shortest = 999999;
 			BWAPI::TilePosition newBase;
 			for (auto base : _infoManager.getIslandBases())
 			{
@@ -491,6 +506,8 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 			_workers.insert(std::pair<BWAPI::Unit, BWEM::Base *>(_mineralClearer, _infoManager.getOwnedBases().begin()->second));
 		_mineralClearer = NULL;
 	}
+
+	updatePendingConstructions();
 	
 	// If we have no owned bases don't bother checking for assignments
 	if (_infoManager.getOwnedBases().size())
@@ -499,6 +516,9 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 		for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _workers.begin(); it != _workers.end(); it++)
 		{
 			if (!it->first || !it->first->exists())
+				continue;
+
+			if (_pendingConstructions.find(it->first) != _pendingConstructions.end())
 				continue;
 
 			if (it->first->getType() != BWAPI::UnitTypes::Terran_SCV)
@@ -701,327 +721,234 @@ void insanitybot::WorkerManager::update(InformationManager & _infoManager)
 	}
 }
 
-void WorkerManager::construct(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWAPI::UnitType structure, BWAPI::TilePosition targetLocation, std::map<BWAPI::Position, BWEM::Base *> & _ownedBases)
+void WorkerManager::construct(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWAPI::UnitType structure, BWAPI::TilePosition targetLocation, std::map<BWAPI::Position, BWEM::Base *> & _ownedBases, InformationManager & _infoManager)
 {
-	if (_workers.size())
+	if (!targetLocation.isValid())
+		return;
+
+	for (const auto & pending : _pendingConstructions)
 	{
-		int shortestDistance = 999999;
-		std::map<BWAPI::Unit, BWEM::Base *>::iterator & builder = _workers.begin();
+		if (buildingSitesOverlap(targetLocation, structure, pending.second.targetLocation, pending.second.structure))
+			return;
+	}
 
-		for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _workers.begin(); it != _workers.end(); it++)
+	std::map<BWAPI::Unit, BWEM::Base *>::iterator builder = _workers.end();
+	int shortestDistance = 999999;
+
+	for (std::map<BWAPI::Unit, BWEM::Base *>::iterator it = _workers.begin(); it != _workers.end(); ++it)
+	{
+		if (!it->first || !it->first->exists() || !it->second ||
+			it->first->getType() != structure.whatBuilds().first ||
+			_pendingConstructions.find(it->first) != _pendingConstructions.end() ||
+			!(it->first->isIdle() || it->first->isMoving() || it->first->isGatheringMinerals()) ||
+			it->first->isCarryingGas() || it->second->isGasWorker(it->first) || it->first->isConstructing() ||
+			std::find(_infoManager.getRepairWorkers().begin(), _infoManager.getRepairWorkers().end(), it->first) != _infoManager.getRepairWorkers().end() ||
+			it->first == _mineralClearer)
+			continue;
+
+		int distance = it->first->getDistance(BWAPI::Position(targetLocation));
+		if (distance >= shortestDistance || distance >= 1200 ||
+			BWAPI::Broodwar->getGroundHeight(it->first->getTilePosition()) != BWAPI::Broodwar->getGroundHeight(targetLocation))
+			continue;
+
+		shortestDistance = distance;
+		builder = it;
+	}
+
+	if (builder == _workers.end())
+	{
+		for (std::map<BWAPI::Unit, BWEM::Base *>::iterator it = _workers.begin(); it != _workers.end(); ++it)
 		{
-			if (!it->first || !it->first->exists())
+			if (!it->first || !it->first->exists() || !it->second ||
+				it->first->getType() != structure.whatBuilds().first ||
+				_pendingConstructions.find(it->first) != _pendingConstructions.end() ||
+				!(it->first->isIdle() || it->first->isMoving() || it->first->isGatheringMinerals()) ||
+				it->first->isCarryingGas() || it->second->isGasWorker(it->first) || it->first->isConstructing() ||
+				std::find(_infoManager.getRepairWorkers().begin(), _infoManager.getRepairWorkers().end(), it->first) != _infoManager.getRepairWorkers().end() ||
+				it->first == _mineralClearer)
 				continue;
 
-			if (it->first->getType() != BWAPI::UnitTypes::Terran_SCV)
+			int distance = it->first->getDistance(BWAPI::Position(targetLocation));
+			if (distance < shortestDistance)
 			{
-				Broodwar << it->first->getType() << " found in worker list." << std::endl;
-				continue;
-			}
-
-			// Check for closest available worker that is on the same heigh level as our destination and is not too far away
-			if (it->first->getType() == structure.whatBuilds().first && (it->first->isIdle() || it->first->isMoving() || it->first->isGatheringMinerals())
-				&& !it->first->isCarryingGas() && !it->second->isGasWorker(it->first) && !it->first->isConstructing() &&
-				it->first->getDistance(BWAPI::Position(targetLocation)) < shortestDistance &&
-				it->first->getDistance(BWAPI::Position(targetLocation)) < 1200 &&
-				BWAPI::Broodwar->getGroundHeight(it->first->getTilePosition()) == BWAPI::Broodwar->getGroundHeight(targetLocation))
-			{
-				shortestDistance = it->first->getDistance(BWAPI::Position(targetLocation));
+				shortestDistance = distance;
 				builder = it;
 			}
 		}
+	}
 
-		if (builder->first && builder->first->exists() && builder != _workers.begin())
+	if (builder == _workers.end())
+		return;
+
+	BWAPI::Unit worker = builder->first;
+	PendingConstruction construction = { structure, targetLocation, builder->second, -24 };
+	_pendingConstructions[worker] = construction;
+	BuildingPlacer::Instance().reserveConstructionSite(targetLocation, structure);
+
+	for (auto & base : _ownedBases)
+	{
+		if (base.second == builder->second)
 		{
-			// Register an event that draws the target build location
-			Broodwar->registerEvent([targetLocation, structure](Game*)
-			{
-				Broodwar->drawBoxMap(Position(targetLocation),
-					Position(targetLocation + structure.tileSize()),
-					Colors::Blue);
-			},
-				nullptr,  // condition
-				structure.buildTime() + 100);  // frames to run
+			base.second->removeAssignment(worker);
+			break;
+		}
+	}
 
-			bool targetVisible = true;
+	Broodwar->registerEvent([targetLocation, structure](Game*)
+	{
+		Broodwar->drawBoxMap(Position(targetLocation),
+			Position(targetLocation + structure.tileSize()),
+			Colors::Blue);
+	}, nullptr, structure.buildTime() + 100);
 
-			for (int x = 0; x < structure.tileWidth(); ++x)
-			{
-				for (int y = 0; y < structure.tileHeight(); ++y)
-				{
-					if (!BWAPI::Broodwar->isExplored(targetLocation.x + x, targetLocation.y + y))
-					{
-						targetVisible = false;
-					}
-				}
-			}
-			if (targetVisible)
-			{
-				builder->first->build(structure, targetLocation);
+	worker->move(BWAPI::Position(targetLocation));
+}
 
-				for (auto & base : _ownedBases)
-				{
-					if (base.second == builder->second)
-					{
-						base.second->removeAssignment(builder->first);
-						break;
-					}
-				}
-			}
-			else
+void WorkerManager::updatePendingConstructions()
+{
+	//BWAPI::Broodwar->sendText("_pendingConstructions: %d", _pendingConstructions.size());
+	for (auto it = _pendingConstructions.begin(); it != _pendingConstructions.end();)
+	{
+		BWAPI::Unit worker = it->first;
+		PendingConstruction & construction = it->second;
+		if (!worker || !worker->exists() || worker->isConstructing())
+		{
+			BuildingPlacer::Instance().releaseConstructionSite(construction.targetLocation, construction.structure);
+			it = _pendingConstructions.erase(it);
+			continue;
+		}
+
+		bool siteOccupied = false;
+		for (BWAPI::Unit building : BWAPI::Broodwar->self()->getUnits())
+		{
+			if (building && building->exists() && building->getPlayer() == BWAPI::Broodwar->self() && building->getType().isBuilding() &&
+				buildingSitesOverlap(construction.targetLocation, construction.structure, building->getTilePosition(), building->getType()))
 			{
-				builder->first->move(BWAPI::Position(targetLocation));
-				for (auto & base : _ownedBases)
-				{
-					if (base.second == builder->second)
-					{
-						base.second->removeAssignment(builder->first);
-						break;
-					}
-				}
+				siteOccupied = true;
+				break;
 			}
 		}
-		else
+
+		if (siteOccupied)
 		{
-			// If we didn't find a builder, remove the height and distance requirements
-			for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _workers.begin(); it != _workers.end(); it++)
+			BuildingPlacer::Instance().releaseConstructionSite(construction.targetLocation, construction.structure);
+			it = _pendingConstructions.erase(it);
+			continue;
+		}
+
+		bool targetExplored = true;
+		for (int x = 0; x < construction.structure.tileWidth(); ++x)
+		{
+			for (int y = 0; y < construction.structure.tileHeight(); ++y)
 			{
-				if (!it->first || !it->first->exists())
-					continue;
-
-				if (it->first->getType() != BWAPI::UnitTypes::Terran_SCV)
-				{
-					Broodwar << it->first->getType() << " found in worker list." << std::endl;
-					continue;
-				}
-
-				if (it->first->getType() == structure.whatBuilds().first && (it->first->isIdle() || it->first->isMoving() || it->first->isGatheringMinerals())
-					&& !it->first->isCarryingGas() && !it->second->isGasWorker(it->first) && !it->first->isConstructing() &&
-					it->first->getDistance(BWAPI::Position(targetLocation)) < shortestDistance)
-				{
-					shortestDistance = it->first->getDistance(BWAPI::Position(targetLocation));
-					builder = it;
-				}
-			}
-
-			if (builder->first && builder->first->exists())
-			{
-				// Register an event that draws the target build location
-				Broodwar->registerEvent([targetLocation, structure](Game*)
-				{
-					Broodwar->drawBoxMap(Position(targetLocation),
-						Position(targetLocation + structure.tileSize()),
-						Colors::Blue);
-				},
-					nullptr,  // condition
-					structure.buildTime() + 100);  // frames to run
-
-				bool targetVisible = true;
-
-				for (int x = 0; x < structure.tileWidth(); ++x)
-				{
-					for (int y = 0; y < structure.tileHeight(); ++y)
-					{
-						if (!BWAPI::Broodwar->isExplored(targetLocation.x + x, targetLocation.y + y))
-						{
-							targetVisible = false;
-						}
-					}
-				}
-				if (targetVisible)
-				{
-					builder->first->build(structure, targetLocation);
-
-					for (auto & base : _ownedBases)
-					{
-						if (base.second == builder->second)
-						{
-							base.second->removeAssignment(builder->first);
-							break;
-						}
-					}
-				}
-				else
-				{
-					builder->first->move(BWAPI::Position(targetLocation));
-
-					for (auto & base : _ownedBases)
-					{
-						if (base.second == builder->second)
-						{
-							base.second->removeAssignment(builder->first);
-							break;
-						}
-					}
-				}
+				if (!BWAPI::Broodwar->isExplored(construction.targetLocation.x + x, construction.targetLocation.y + y))
+					targetExplored = false;
 			}
 		}
+
+		BWAPI::Position workerPosition = worker->getPosition();
+		BWAPI::Position firstTileCenter = BWAPI::Position(construction.targetLocation);
+		int left = firstTileCenter.x - 16;
+		int top = firstTileCenter.y - 16;
+		int right = left + construction.structure.tileWidth() * 32;
+		int bottom = top + construction.structure.tileHeight() * 32;
+		int distanceX = std::max(0, std::max(left - workerPosition.x, workerPosition.x - right));
+		int distanceY = std::max(0, std::max(top - workerPosition.y, workerPosition.y - bottom));
+
+		if (!targetExplored || distanceX * distanceX + distanceY * distanceY > 96 * 96)
+		{
+			if (worker->isIdle() || !worker->isMoving() || worker->isGatheringMinerals() || worker->isGatheringGas())
+				worker->move(BWAPI::Position(construction.targetLocation));
+			++it;
+			continue;
+		}
+
+		bool movedBlocker = false;
+		BWAPI::Position center((left + right) / 2, (top + bottom) / 2);
+		BWAPI::Position clearancePositions[] = {
+			BWAPI::Position(left - 32, center.y),
+			BWAPI::Position(right + 32, center.y),
+			BWAPI::Position(center.x, top - 32),
+			BWAPI::Position(center.x, bottom + 32)
+		};
+
+		for (BWAPI::Unit blocker : BWAPI::Broodwar->self()->getUnits())
+		{
+			if (!blocker || !blocker->exists() || blocker == worker || blocker->isFlying() || blocker->isLoaded() ||
+				blocker->getType().isBuilding() || _pendingConstructions.find(blocker) != _pendingConstructions.end() ||
+				!buildingSitesOverlap(construction.targetLocation, construction.structure, blocker->getTilePosition(), blocker->getType()))
+				continue;
+
+			if (blocker->getType() == BWAPI::UnitTypes::Terran_Vulture_Spider_Mine)
+			{
+				worker->attack(blocker);
+				movedBlocker = true;
+				continue;
+			}
+
+			bool idleWorker = blocker->getType().isWorker() && blocker->isIdle();
+			bool idleCombatUnit = !blocker->getType().isWorker() && blocker->getType().canAttack() &&
+				!blocker->isMoving() && !blocker->isAttacking() && !blocker->isUnderAttack();
+			if (!idleWorker && !idleCombatUnit)
+				continue;
+
+			if (blocker->isSieged())
+			{
+				if (blocker->getLastCommand().getType() != BWAPI::UnitCommandTypes::Use_Tech)
+					blocker->unsiege();
+				movedBlocker = true;
+				continue;
+			}
+
+			int nearestDistance = 999999;
+			BWAPI::Position clearancePosition;
+			for (BWAPI::Position candidate : clearancePositions)
+			{
+				if (!candidate.isValid() || !BWAPI::Broodwar->isWalkable(BWAPI::WalkPosition(candidate)))
+					continue;
+
+				int distance = blocker->getDistance(candidate);
+				if (distance < nearestDistance)
+				{
+					nearestDistance = distance;
+					clearancePosition = candidate;
+				}
+			}
+
+			if (nearestDistance < 999999)
+			{
+				blocker->move(clearancePosition);
+				movedBlocker = true;
+			}
+		}
+
+		if (movedBlocker)
+		{
+			++it;
+			continue;
+		}
+
+		if (BWAPI::Broodwar->self()->minerals() < construction.structure.mineralPrice() ||
+			BWAPI::Broodwar->self()->gas() < construction.structure.gasPrice() ||
+			BWAPI::Broodwar->getFrameCount() - construction.lastBuildAttempt < 24)
+		{
+			++it;
+			continue;
+		}
+
+		construction.lastBuildAttempt = BWAPI::Broodwar->getFrameCount();
+		worker->build(construction.structure, construction.targetLocation);
+		++it;
 	}
 }
 
-void WorkerManager::supplyConstruction(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWAPI::TilePosition targetBuildLocation, int reservedMinerals, std::map<BWAPI::Position, BWEM::Base *> & _ownedBases)
+void WorkerManager::supplyConstruction(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWAPI::TilePosition targetBuildLocation, int reservedMinerals, std::map<BWAPI::Position, BWEM::Base *> & _ownedBases, InformationManager & _infoManager)
 {
-	//////////////////////////////////////////////////////////////////////////////
-	// Supply Production
-	//////////////////////////////////////////////////////////////////////////////
-	UnitType supplyProviderType = BWAPI::UnitTypes::Terran_Supply_Depot;
+	BWAPI::UnitType supplyProviderType = BWAPI::UnitTypes::Terran_Supply_Depot;
+	if (hasPendingConstruction(supplyProviderType))
+		return;
 
-	// If we are supply blocked and haven't tried constructing more recently
-	if (_workers.size())
-	{
-		int shortestDistance = 999999;
-		std::map<BWAPI::Unit, BWEM::Base *>::iterator & builder = _workers.begin();
-
-		for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _workers.begin(); it != _workers.end(); it++)
-		{
-			if (!it->first || !it->first->exists())
-				continue;
-
-			if (it->first->getType() != BWAPI::UnitTypes::Terran_SCV)
-			{
-				Broodwar << it->first->getType() << " found in worker list." << std::endl;
-				continue;
-			}
-
-			// Check for closest available worker that is on the same heigh level as our destination and is not too far away
-			if (it->first->getType() == supplyProviderType.whatBuilds().first && (it->first->isIdle() || it->first->isMoving() || it->first->isGatheringMinerals())
-				&& !it->first->isCarryingGas() && !it->second->isGasWorker(it->first) && !it->first->isConstructing() &&
-				it->first->getDistance(BWAPI::Position(targetBuildLocation)) < shortestDistance &&
-				it->first->getDistance(BWAPI::Position(targetBuildLocation)) < 1200 &&
-				BWAPI::Broodwar->getGroundHeight(it->first->getTilePosition()) == BWAPI::Broodwar->getGroundHeight(targetBuildLocation))
-			{
-				shortestDistance = it->first->getDistance(BWAPI::Position(targetBuildLocation));
-				builder = it;
-			}
-		}
-
-		if (builder->first && builder->first->exists() &&
-			builder != _workers.begin())
-		{
-			// Register an event that draws the target build location
-			Broodwar->registerEvent([targetBuildLocation, supplyProviderType](Game*)
-			{
-				Broodwar->drawBoxMap(Position(targetBuildLocation),
-					Position(targetBuildLocation + supplyProviderType.tileSize()),
-					Colors::Blue);
-			},
-				nullptr,  // condition
-				supplyProviderType.buildTime() + 100);  // frames to run
-
-			bool targetVisible = true;
-
-			for (int x = 0; x < supplyProviderType.tileWidth(); ++x)
-			{
-				for (int y = 0; y < supplyProviderType.tileHeight(); ++y)
-				{
-					if (!BWAPI::Broodwar->isExplored(targetBuildLocation.x + x, targetBuildLocation.y + y))
-					{
-						targetVisible = false;
-					}
-				}
-			}
-			if (targetVisible)
-			{
-				builder->first->build(supplyProviderType, targetBuildLocation);
-
-				for (auto & base : _ownedBases)
-				{
-					if (base.second == builder->second)
-					{
-						base.second->removeAssignment(builder->first);
-						break;
-					}
-				}
-			}
-			else
-			{
-				builder->first->move(BWAPI::Position(targetBuildLocation));
-				for (auto & base : _ownedBases)
-				{
-					if (base.second == builder->second)
-					{
-						base.second->removeAssignment(builder->first);
-						break;
-					}
-				}
-			}
-		}
-		else
-		{
-			// If we didn't find a builder, remove the height and distance requirements
-			for (std::map<BWAPI::Unit, BWEM::Base *>::iterator & it = _workers.begin(); it != _workers.end(); it++)
-			{
-				if (!it->first || !it->first->exists())
-					continue;
-
-				if (it->first->getType() != BWAPI::UnitTypes::Terran_SCV)
-				{
-					Broodwar << it->first->getType() << " found in worker list." << std::endl;
-					continue;
-				}
-
-				if (it->first->getType() == supplyProviderType.whatBuilds().first && (it->first->isIdle() || it->first->isMoving() || it->first->isGatheringMinerals())
-					&& !it->first->isCarryingGas() && !it->second->isGasWorker(it->first) && !it->first->isConstructing() &&
-					it->first->getDistance(BWAPI::Position(targetBuildLocation)) < shortestDistance)
-				{
-					shortestDistance = it->first->getDistance(BWAPI::Position(targetBuildLocation));
-					builder = it;
-				}
-			}
-
-			if (builder->first && builder->first->exists())
-			{
-				// Register an event that draws the target build location
-				Broodwar->registerEvent([targetBuildLocation, supplyProviderType](Game*)
-				{
-					Broodwar->drawBoxMap(Position(targetBuildLocation),
-						Position(targetBuildLocation + supplyProviderType.tileSize()),
-						Colors::Blue);
-				},
-					nullptr,  // condition
-					supplyProviderType.buildTime() + 100);  // frames to run
-
-				bool targetVisible = true;
-
-				for (int x = 0; x < supplyProviderType.tileWidth(); ++x)
-				{
-					for (int y = 0; y < supplyProviderType.tileHeight(); ++y)
-					{
-						if (!BWAPI::Broodwar->isExplored(targetBuildLocation.x + x, targetBuildLocation.y + y))
-						{
-							targetVisible = false;
-						}
-					}
-				}
-				if (targetVisible)
-				{
-					builder->first->build(supplyProviderType, targetBuildLocation);
-
-					for (auto & base : _ownedBases)
-					{
-						if (base.second == builder->second)
-						{
-							base.second->removeAssignment(builder->first);
-							break;
-						}
-					}
-				}
-				else
-				{
-					builder->first->move(BWAPI::Position(targetBuildLocation));
-
-					for (auto & base : _ownedBases)
-					{
-						if (base.second == builder->second)
-						{
-							base.second->removeAssignment(builder->first);
-							break;
-						}
-					}
-				}
-			}
-		}
-	}
+	construct(_workers, supplyProviderType, targetBuildLocation, _ownedBases, _infoManager);
 }
 
 void insanitybot::WorkerManager::assignBullyHunters(std::map<BWAPI::Unit, BWEM::Base*>& _workers, std::list<BWAPI::Unit>& _bullyHunters, int numberOfEnemies, std::map<BWAPI::Position, BWEM::Base *> & _ownedBases)

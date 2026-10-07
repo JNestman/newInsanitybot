@@ -1599,6 +1599,7 @@ void insanitybot::BuildOrder::VultureRush(InformationManager & _infoManager)
 	std::list<BWAPI::UnitType> & _queue = _infoManager.getQueue();
 
 	int numWorkers = _infoManager.getWorkers().size();
+	int numVultures = _infoManager.getVultures().size();
 	int numRaxFinished = _infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Barracks);
 	int numRaxTotal = _infoManager.getBarracks().size();
 	int numFactoryFinished = _infoManager.getNumFinishedUnit(BWAPI::UnitTypes::Terran_Factory);
@@ -1660,7 +1661,7 @@ void insanitybot::BuildOrder::VultureRush(InformationManager & _infoManager)
 		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());
 	}
 
-	if (_self->deadUnitCount(BWAPI::UnitTypes::Terran_Vulture) > 6)
+	if (_self->deadUnitCount(BWAPI::UnitTypes::Terran_Vulture) > 6 || numVultures > 14)
 	{
 		_infoManager.setStrategy("Mech");
 		_infoManager.setAggression(false);

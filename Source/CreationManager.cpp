@@ -9,7 +9,7 @@ insanitybot::CreationManager::CreationManager()
 
 void CreationManager::initialize()
 {
-	_buildingPlacer.initialize();
+	BuildingPlacer::Instance().initialize();
 
 	_constructionQueue.clear();
 }
@@ -100,7 +100,7 @@ void CreationManager::update(InformationManager & _infoManager)
 			{
 				if (!base.second->getBaseCommandCenter()->isBeingConstructed())
 				{
-					BWAPI::TilePosition islandBuildingLocation = _buildingPlacer.getPositionNear(BWAPI::UnitTypes::Terran_Missile_Turret, base.second->Location(), _infoManager.isMech(_infoManager.getStrategy()));
+					BWAPI::TilePosition islandBuildingLocation = BuildingPlacer::Instance().getPositionNear(BWAPI::UnitTypes::Terran_Missile_Turret, base.second->Location(), _infoManager.isMech(_infoManager.getStrategy()));
 					WorkerManager::Instance().handleIslandConstruction(_infoManager.getIslandWorkers(), _infoManager.getOwnedIslandBases(), _infoManager.getEngibays(), islandBuildingLocation);
 				}
 			}
@@ -111,7 +111,7 @@ void CreationManager::update(InformationManager & _infoManager)
 	* This is where we will construct what
 	* we put into our queue.
 	*******************************************************/
-	if (!_infoManager.getQueue().empty() && _constructionQueue.empty())
+	if (!_infoManager.getQueue().empty() && _constructionQueue.empty() && !WorkerManager::Instance().hasPendingBuildOrderConstruction())
 	{
 		std::list<BWAPI::TilePosition> takenPositions;
 		takenPositions.clear();
@@ -122,8 +122,8 @@ void CreationManager::update(InformationManager & _infoManager)
 				continue;
 			else if (unit == BWAPI::UnitTypes::Terran_Supply_Depot && _infoManager.getStrategy() == "VultureRush" && _self->supplyTotal() < 84)
 			{
-				BWAPI::TilePosition targetSupplyLocation = _buildingPlacer.getSupplyLocation(BWAPI::UnitTypes::Terran_Supply_Depot, _infoManager);
-				WorkerManager::Instance().supplyConstruction(_infoManager.getWorkers(), targetSupplyLocation, _infoManager.getReservedMinerals(), _infoManager.getOwnedBases());
+				BWAPI::TilePosition targetSupplyLocation = BuildingPlacer::Instance().getSupplyLocation(BWAPI::UnitTypes::Terran_Supply_Depot, _infoManager);
+				WorkerManager::Instance().supplyConstruction(_infoManager.getWorkers(), targetSupplyLocation, _infoManager.getReservedMinerals(), _infoManager.getOwnedBases(), _infoManager);
 				WorkerManager::Instance().setLastCheckSupply(BWAPI::Broodwar->getFrameCount());
 				_constructionQueue.insert(std::pair<BWAPI::UnitType, int>(unit, Broodwar->getFrameCount()));
 				continue;
@@ -134,14 +134,14 @@ void CreationManager::update(InformationManager & _infoManager)
 			{
 				BWAPI::TilePosition targetBuildingLocation;
 				if (unit == BWAPI::UnitTypes::Terran_Missile_Turret)
-					targetBuildingLocation = _buildingPlacer.getTurretLocation(_infoManager);
+					targetBuildingLocation = BuildingPlacer::Instance().getTurretLocation(_infoManager);
 				else
-					targetBuildingLocation = _buildingPlacer.getDesiredLocation(unit, _infoManager, takenPositions);
+					targetBuildingLocation = BuildingPlacer::Instance().getDesiredLocation(unit, _infoManager, takenPositions);
 
 				if (weCanBuild(unit))
 				{
 					takenPositions.push_back(targetBuildingLocation);
-					WorkerManager::Instance().construct(_infoManager.getWorkers(), unit, targetBuildingLocation, _infoManager.getOwnedBases());
+					WorkerManager::Instance().construct(_infoManager.getWorkers(), unit, targetBuildingLocation, _infoManager.getOwnedBases(), _infoManager);
 					mineralsLeft = mineralsLeft - unit.mineralPrice();
 					gasLeft = gasLeft - unit.gasPrice();
 				}
@@ -909,8 +909,8 @@ void CreationManager::update(InformationManager & _infoManager)
 		_infoManager.getQueue().push_back(BWAPI::UnitTypes::Terran_Supply_Depot);
 		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());
 
-		BWAPI::TilePosition targetSupplyLocation = _buildingPlacer.getSupplyLocation(BWAPI::UnitTypes::Terran_Supply_Depot, _infoManager);
-		WorkerManager::Instance().supplyConstruction(_infoManager.getWorkers(), targetSupplyLocation, _infoManager.getReservedMinerals(), _infoManager.getOwnedBases());
+		BWAPI::TilePosition targetSupplyLocation = BuildingPlacer::Instance().getSupplyLocation(BWAPI::UnitTypes::Terran_Supply_Depot, _infoManager);
+		WorkerManager::Instance().supplyConstruction(_infoManager.getWorkers(), targetSupplyLocation, _infoManager.getReservedMinerals(), _infoManager.getOwnedBases(), _infoManager);
 		WorkerManager::Instance().setLastCheckSupply(BWAPI::Broodwar->getFrameCount());
 	}
 	else if (_self->supplyUsed() >= 28 && _infoManager.getQueue().empty() && _self->minerals() >= 100 &&
@@ -920,11 +920,13 @@ void CreationManager::update(InformationManager & _infoManager)
 		_infoManager.getQueue().push_back(BWAPI::UnitTypes::Terran_Supply_Depot);
 		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());
 
-		BWAPI::TilePosition targetSupplyLocation = _buildingPlacer.getSupplyLocation(BWAPI::UnitTypes::Terran_Supply_Depot, _infoManager);
-		WorkerManager::Instance().supplyConstruction(_infoManager.getWorkers(), targetSupplyLocation, _infoManager.getReservedMinerals(), _infoManager.getOwnedBases());
+		BWAPI::TilePosition targetSupplyLocation = BuildingPlacer::Instance().getSupplyLocation(BWAPI::UnitTypes::Terran_Supply_Depot, _infoManager);
+		WorkerManager::Instance().supplyConstruction(_infoManager.getWorkers(), targetSupplyLocation, _infoManager.getReservedMinerals(), _infoManager.getOwnedBases(), _infoManager);
 		WorkerManager::Instance().setLastCheckSupply(BWAPI::Broodwar->getFrameCount());
 	}
-	else if (_self->supplyTotal() < 64 && !_infoManager.getQueue().empty() && WorkerManager::Instance().getLastCheckSupply() + 200 < BWAPI::Broodwar->getFrameCount())
+	else if (_self->supplyTotal() < 64 && !_infoManager.getQueue().empty() &&
+		!WorkerManager::Instance().hasPendingConstruction(BWAPI::UnitTypes::Terran_Supply_Depot) &&
+		WorkerManager::Instance().getLastCheckSupply() + 200 < BWAPI::Broodwar->getFrameCount())
 	{
 		for (std::list<BWAPI::UnitType>::iterator queued = _infoManager.getQueue().begin(); queued != _infoManager.getQueue().end(); queued++)
 		{
@@ -942,17 +944,20 @@ void CreationManager::update(InformationManager & _infoManager)
 
 	int producerSize = (_infoManager.getBarracks().size() * 3) + (_infoManager.getFactories().size() * 2) + _infoManager.getStarports().size() + (_infoManager.getCommandCenters().size() * 3);
 
-	if (_infoManager.getReservedMinerals() < 500 && WorkerManager::Instance().checkSupplyConstruction(producerSize, _infoManager.getReservedMinerals()))
+	if (_infoManager.getReservedMinerals() < 500 &&
+		!WorkerManager::Instance().hasPendingConstruction(BWAPI::UnitTypes::Terran_Supply_Depot) &&
+		WorkerManager::Instance().checkSupplyConstruction(producerSize, _infoManager.getReservedMinerals()))
 	{
-		BWAPI::TilePosition targetSupplyLocation = _buildingPlacer.getSupplyLocation(BWAPI::UnitTypes::Terran_Supply_Depot, _infoManager);
+		BWAPI::TilePosition targetSupplyLocation = BuildingPlacer::Instance().getSupplyLocation(BWAPI::UnitTypes::Terran_Supply_Depot, _infoManager);
 
 		_infoManager.getQueue().push_back(BWAPI::UnitTypes::Terran_Supply_Depot);
 
 		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());
 
-		WorkerManager::Instance().supplyConstruction(_infoManager.getWorkers(), targetSupplyLocation, _infoManager.getReservedMinerals(), _infoManager.getOwnedBases());
+		WorkerManager::Instance().supplyConstruction(_infoManager.getWorkers(), targetSupplyLocation, _infoManager.getReservedMinerals(), _infoManager.getOwnedBases(), _infoManager);
 	}
-	else if (WorkerManager::Instance().getLastCheckSupply() + 300 < Broodwar->getFrameCount())
+	else if (!WorkerManager::Instance().hasPendingConstruction(BWAPI::UnitTypes::Terran_Supply_Depot) &&
+		WorkerManager::Instance().getLastCheckSupply() + 300 < Broodwar->getFrameCount())
 	{
 		for (std::list<BWAPI::UnitType>::iterator queued = _infoManager.getQueue().begin(); queued != _infoManager.getQueue().end();)
 		{

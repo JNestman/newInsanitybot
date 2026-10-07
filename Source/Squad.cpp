@@ -6,6 +6,16 @@ namespace { auto & theMap = BWEM::Map::Instance(); }
 
 using namespace insanitybot;
 
+// Define KITE_DEBUG to draw each vulture's kiting state on screen.
+//#define KITE_DEBUG
+
+const int    TURNAROUND_FRAMES = 4;     // extra frames (on top of latency) to turn back before the weapon is ready
+const int    RETREAT_COMMIT_FRAMES = 10;    // re-plan the retreat at least this often
+const double RETREAT_HYSTERESIS = 64.0;  // px; extra threat radius while already retreating (prevents flapping)
+const double MIN_RETREAT_STEP = 48.0;  // px
+const double MAX_RETREAT_STEP = 160.0; // px
+const double SPEED_FUTILITY_RATIO = 0.95;  // enemy at >= this fraction of our speed: don't bother kiting
+
 insanitybot::Squad::Squad(BWAPI::Unit unit, bool isAllIn)
 {
 	goodToAttack = false;
@@ -1718,9 +1728,44 @@ void insanitybot::Squad::handleVultures(BWAPI::Position attackPoint, BWAPI::Posi
 {
 	BWAPI::Unit closestTankToTarget = getClosestTankToTarget(attackPoint, forwardGather, haveGathered);
 
+	auto tag = [&](BWAPI::Unit v, const char* s) {
+		BWAPI::Broodwar->drawTextMap(v->getPosition() + BWAPI::Position(-20, -56), "HV:%s", s);
+		};
+
+	// Once, before the for loop (not once per vulture):
+	for (auto it = kitingVultures.begin(); it != kitingVultures.end(); )
+		it = (!*it || !(*it)->exists()) ? kitingVultures.erase(it) : std::next(it);
+
+	const int latency = BWAPI::Broodwar->getLatencyFrames();
+
 	for (auto vulture = _vultures.begin(); vulture != _vultures.end();)
 	{
 		if (!vulture->first || !vulture->first->exists()) { vulture = _vultures.erase(vulture); continue; }
+
+		BWAPI::Unit u = vulture->first;
+		const int range = u->getPlayer()->weaponMaxRange(u->getType().groundWeapon());
+
+		// Hysteresis: easy to stay in kiting, harder to enter
+		const bool wasKiting = kitingVultures.count(u) > 0;
+		const int radius = range + (wasKiting ? 192 : 96);
+
+		BWAPI::Unit closestEnemy = nullptr;
+		int closestDist = INT_MAX;
+
+		for (auto enemy : u->getUnitsInRadius(radius, BWAPI::Filter::IsEnemy))
+		{
+			if (!enemy || !enemy->exists() || !enemy->isVisible()) continue;
+
+			const BWAPI::UnitType t = enemy->getType();
+			if (t.isBuilding() || enemy->isFlying() || t.isInvincible()) continue;
+
+			const int d = u->getDistance(enemy);
+			if (d < closestDist)
+			{
+				closestDist = d;
+				closestEnemy = enemy;
+			}
+		}
 
 		// --- Branch: Attacking a neutral structure ---
 		if (target != NULL)
@@ -1732,37 +1777,40 @@ void insanitybot::Squad::handleVultures(BWAPI::Position attackPoint, BWAPI::Posi
 				if (!closeEnough(vulture->first->getPosition(), target->getInitialPosition()))
 					vulture->first->move(target->getInitialPosition());
 			}
+			tag(u, "neutral-target");   // in the target != NULL branch
 			++vulture;
 			continue;
 		}
+
+		if (closestEnemy)
+		{
+			vulture->second = 1;
+			kitingVultures.insert(u);
+			vultureKiteMicro(u, closestEnemy);
+			++vulture;
+			continue;
+		}
+
+		kitingVultures.erase(u); // nothing valid nearby: fall through to your normal logic
+		tag(u, "no-enemy");
 
 		// --- Branch: Normal attack movement ---
 		// Mine planting state machine
 		if (vulture->second > 1)
 		{
-			if (vulture->first->getOrder() != BWAPI::Orders::PlaceMine || vulture->second + 100 < BWAPI::Broodwar->getFrameCount())
+			const int sinceCmd = BWAPI::Broodwar->getFrameCount() - vulture->second;
+			const bool landed = sinceCmd > latency + 2;   // give the useTech command time to land
+			if (landed && (u->getOrder() != BWAPI::Orders::PlaceMine || sinceCmd > 100))
 				vulture->second = 1;
 			else
 			{
-				++vulture; continue;
+				tag(u, "mine-state");
+				++vulture;
+				continue;
 			}
 		}
 
-		if (!vulture->first->getUnitsInRadius(BWAPI::WeaponTypes::Fragmentation_Grenade.maxRange(), BWAPI::Filter::IsEnemy).empty())
-		{
-			BWAPI::Unit closestEnemy = NULL;
-			for (auto enemy : vulture->first->getUnitsInRadius(BWAPI::WeaponTypes::Fragmentation_Grenade.maxRange(), BWAPI::Filter::IsEnemy))
-			{
-				if (!enemy || !enemy->exists()) continue;
-				if (closestEnemy == NULL || vulture->first->getDistance(enemy) < vulture->first->getDistance(closestEnemy))
-					closestEnemy = enemy;
-			}
-
-			vultureKiteMicro(vulture->first, closestEnemy);
-			++vulture;
-			continue;
-		}
-		else if (canPlantMine(vulture->first) && shouldPlantMine(vulture->first))
+		if (canPlantMine(vulture->first) && shouldPlantMine(vulture->first))
 		{
 			vulture->second = BWAPI::Broodwar->getFrameCount();
 			vulture->first->useTech(BWAPI::TechTypes::Spider_Mines, vulture->first->getPosition());
@@ -1776,6 +1824,7 @@ void insanitybot::Squad::handleVultures(BWAPI::Position attackPoint, BWAPI::Posi
 			if (!closeEnough(gatherPoint, vulture->first->getPosition()) && vulture->first->getGroundWeaponCooldown() == 0)
 				vulture->first->attack(gatherPoint);
 
+			tag(u, "gather");
 			++vulture;
 			continue;
 		}
@@ -1791,6 +1840,7 @@ void insanitybot::Squad::handleVultures(BWAPI::Position attackPoint, BWAPI::Posi
 			{
 				vulture->first->attack(closestTankToTarget->getPosition());
 			}
+			tag(u, "tank");
 		}
 		else
 		{
@@ -1801,6 +1851,7 @@ void insanitybot::Squad::handleVultures(BWAPI::Position attackPoint, BWAPI::Posi
 				if (!closeEnough(vulture->first->getPosition(), dest))
 					vulture->first->attack(dest);
 			}
+			tag(u, "attack-move");
 		}
 
 		++vulture;
@@ -2130,83 +2181,200 @@ bool insanitybot::Squad::tooSpreadOut()
 * Lets start acting like a micro bot
 * Update: Horrible. lol We'll come back to this
 ****************************************************************/
+// True if a straight line from `from` to `to` stays on walkable terrain.
+// Samples every 16px and checks a small cross around each sample so the
+// (fat) vulture doesn't clip cliff edges. NOTE: isWalkable() is terrain only;
+// it ignores buildings and units.
+bool lineIsWalkable(const BWAPI::Position& from, const BWAPI::Position& to)
+{
+	const double dx = to.x - from.x;
+	const double dy = to.y - from.y;
+	const int samples = std::max(1, (int)(std::sqrt(dx * dx + dy * dy) / 16.0));
+
+	const int pad = 12;
+	const int ox[] = { 0, pad, -pad, 0, 0 };
+	const int oy[] = { 0, 0, 0, pad, -pad };
+
+	for (int i = 1; i <= samples; ++i)
+	{
+		const int x = from.x + (int)(dx * i / samples);
+		const int y = from.y + (int)(dy * i / samples);
+		for (int k = 0; k < 5; ++k)
+		{
+			const BWAPI::Position p(x + ox[k], y + oy[k]);
+			if (!p.isValid() || !BWAPI::Broodwar->isWalkable(BWAPI::WalkPosition(p)))
+				return false;
+		}
+	}
+	return true;
+}
+
+// Picks a walkable retreat point roughly opposite the threat. Tries straight
+// away first, then fans out left/right so the vulture slides along walls
+// instead of ramming them. Returns Positions::Invalid if cornered.
+BWAPI::Position findRetreatPosition(BWAPI::Unit vulture, BWAPI::Unit target, double step)
+{
+	const BWAPI::Position vPos = vulture->getPosition();
+	const BWAPI::Position tPos = target->getPosition();
+
+	double dx = vPos.x - tPos.x;
+	double dy = vPos.y - tPos.y;
+	double len = std::sqrt(dx * dx + dy * dy);
+	if (len < 1.0) { dx = 1.0; dy = 0.0; len = 1.0; }
+	const double baseAngle = std::atan2(dy / len, dx / len);
+
+	const double offsets[] = { 0.0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05, 1.4, -1.4 }; // radians
+
+	BWAPI::Position best = BWAPI::Positions::Invalid;
+	double bestScore = -1e9;
+
+	for (double off : offsets)
+	{
+		const double a = baseAngle + off;
+		const BWAPI::Position cand(vPos.x + (int)(std::cos(a) * step),
+			vPos.y + (int)(std::sin(a) * step));
+
+		if (!cand.isValid() || !lineIsWalkable(vPos, cand))
+			continue;
+
+		const double score = cand.getDistance(tPos) - std::abs(off) * 8.0;
+		if (score > bestScore)
+		{
+			bestScore = score;
+			best = cand;
+		}
+	}
+	return best;
+}
+
 void insanitybot::Squad::vultureKiteMicro(BWAPI::Unit vulture, BWAPI::Unit target)
 {
+	auto tag = [&](const char* s) {
+#ifdef KITE_DEBUG
+		BWAPI::Broodwar->drawTextMap(vulture->getPosition() + BWAPI::Position(-20, -44), "%s", s);
+#endif
+		};
 	if (!vulture || !target || !vulture->exists() || !target->exists()) return;
+	if (target->isFlying() || !target->isVisible()) { tag("BAD-TARGET"); return; }
+	//if (vulture->isStartingAttack() || vulture->isAttackFrame()) { tag("SHOT"); return; }
 
-	BWAPI::Broodwar->setLocalSpeed(20);
+	// ---- 1. Gather real (upgrade-aware) numbers ------------------------------
+	BWAPI::Player self = vulture->getPlayer();
+	const BWAPI::WeaponType weapon = vulture->getType().groundWeapon();
 
-	// 1. Gather distance, weapon attributes, and cooldowns
-	int distance = vulture->getDistance(target);
-	int weaponRange = vulture->getType().groundWeapon().maxRange();
-	int cooldown = vulture->getGroundWeaponCooldown();
+	const int    distance = vulture->getDistance(target);
+	const int    range = self->weaponMaxRange(weapon);
+	const int    cooldown = vulture->getGroundWeaponCooldown();
+	const double speed = self->topSpeed(vulture->getType()); // px/frame, includes Ion Thrusters
+	const int    latency = BWAPI::Broodwar->getLatencyFrames();
+	const int    frame = BWAPI::Broodwar->getFrameCount();
 
-	// Account for Vulture speed upgrade (Ion Thrusters) to calculate optimal flee padding
-	double safetyPadding = vulture->getPlayer()->getUpgradeLevel(BWAPI::UpgradeTypes::Ion_Thrusters) ? 96.0 : 64.0;
+	const BWAPI::WeaponType enemyWeapon = target->getType().groundWeapon();
+	const int    enemyRange = target->getPlayer()->weaponMaxRange(enemyWeapon);
+	const double enemySpeed = target->getPlayer()->topSpeed(target->getType());
 
-	// 2. Determine fleeing vector away from the target
-	BWAPI::Position targetPos = target->getPosition();
-	BWAPI::Position vulturePos = vulture->getPosition();
+	const BWAPI::UnitCommand last = vulture->getLastCommand();
 
-	// Vector arithmetic to create a point exactly opposite of the threat
-	BWAPI::Position fleeVector = vulturePos - targetPos;
-	double length = vulturePos.getDistance(targetPos);
-
-	BWAPI::Position fleePos = vulturePos;
-	if (length > 0) {
-		fleePos = vulturePos + BWAPI::Position(
-			(int)(fleeVector.x / length * safetyPadding),
-			(int)(fleeVector.y / length * safetyPadding)
-		);
-	}
-
-	// 3. Finite State Machine for Attack vs. Flee
-
-	// PHASE A: Weapon is fully reloaded and target is within viable engagement envelope
-	if (cooldown == 0 && distance <= (weaponRange + 32) && target->isVisible()) {
-		// Issue attack command if not already striking
-		if (vulture->getLastCommand().getType() != BWAPI::UnitCommandTypes::Attack_Unit
-			|| vulture->getLastCommand().getTarget() != target)
+	auto debug = [&](const char* state)
 		{
-			vulture->attack(target);
-			//vulture->patrol(target->getPosition());
-		}
-	}
-	// PHASE B: Weapon is on cooldown or target is dangerously close while reloading
-	else {
-		// Prevent command spam every frame to allow SC pathfinding to compute smoothly
-		if (vulture->isStartingAttack() || vulture->isAttackFrame()) {
-			return; // Hold control for 1 frame to let the vulture attack spin-up execute
-		}
+#ifdef KITE_DEBUG
+			BWAPI::Broodwar->drawTextMap(vulture->getPosition() + BWAPI::Position(-20, -32),
+				"%s cd=%d d=%d", state, cooldown, distance);
+#endif
+			(void)state;
+		};
 
-		if (vulture->getLastCommand().getType() != BWAPI::UnitCommandTypes::Move
-			|| vulture->getLastCommand().getTargetPosition().getDistance(fleePos) > 16)
-		{
-			// Micro-step backward to kite the target
-			vulture->move(fleePos);
-		}
-	}
-	/*if (enemy == BWAPI::Position(0, 0))
+	if (cooldown == 0 && (vulture->isStartingAttack() || vulture->isAttackFrame()))
+	{
+		debug("SHOT");
 		return;
+	}
 
-	// Calculate the vector between the friendly and the enemy
-	BWAPI::Position vector = BWAPI::Position(friendly->getPosition().x - enemy.x, enemy.y - friendly->getPosition().y);
+	auto issueAttack = [&]()
+		{
+			const bool sameOrder = last.getType() == BWAPI::UnitCommandTypes::Attack_Unit
+				&& last.getTarget() == target;
+			const bool settled = frame - vulture->getLastCommandFrame() > latency + 2;
 
-	// Scale the vector by a factor of the friendly unit's max weapon range
-	vector = vector * friendly->getType().groundWeapon().maxRange();
+			// Re-issue if it's a new order, or the old one silently dropped
+			if (!sameOrder || (settled && vulture->isIdle()))
+				vulture->attack(target);
+		};
 
-	BWAPI::Position kiteTo = friendly->getPosition() + vector;
+	// ---- 2. Cases where kiting is pointless ----------------------------------
+	// Target can't shoot back, outranges/matches us, or is too fast to kite: just trade.
+	if (enemyWeapon == BWAPI::WeaponTypes::None
+		|| enemyRange >= range
+		|| enemySpeed >= speed * SPEED_FUTILITY_RATIO)
+	{
+		debug("NO-KITE");
+		issueAttack();
+		return;
+	}
 
-	if (kiteTo.x < 0)
-		kiteTo.x = 5;
-	if (kiteTo.x > BWAPI::Broodwar->mapWidth())
-		kiteTo.x = BWAPI::Broodwar->mapWidth() - 5;
-	if (kiteTo.y < 0)
-		kiteTo.y = 5;
-	if (kiteTo.y > BWAPI::Broodwar->mapHeight())
-		kiteTo.y = BWAPI::Broodwar->mapHeight() - 5;
+	// ---- 3. Weapon ready (or about to be): ATTACK ----------------------------
+	const int turnaround = latency + TURNAROUND_FRAMES;
+	const int framesToWait = cooldown - turnaround;
 
-	friendly->move(kiteTo);*/
+	if (framesToWait <= 0)
+	{
+		debug("ATTACK");
+		issueAttack();
+		return;
+	}
+
+	// ---- 4. On cooldown ------------------------------------------------------
+	const bool midRetreat = last.getType() == BWAPI::UnitCommandTypes::Move;
+
+	// 4a. Keep a committed retreat alive, but only while it's demonstrably working.
+	// If the order never landed, the unit stopped (blocked), it arrived, or the plan
+	// is stale, fall through and re-plan instead of freezing.
+	if (midRetreat)
+	{
+		const int  age = frame - vulture->getLastCommandFrame();
+		const bool orderLanded = age <= latency + 2 || vulture->isMoving();
+		const bool notArrived = vulture->getPosition().getDistance(last.getTargetPosition()) > 24.0;
+		if (orderLanded && notArrived && age < RETREAT_COMMIT_FRAMES)
+		{
+			debug("RETREAT");
+			return;
+		}
+	}
+
+	// 4b. Threat test. Time-invariant: could the enemy reach us within one full
+	// shot cycle? (Using the *remaining* cooldown here makes the test shrink as
+	// fast as the enemy closes in, so the vulture never reacts.)
+	const int    cycleFrames = weapon.damageCooldown() + turnaround;
+	const double enemyReach = enemyRange + enemySpeed * cycleFrames
+		+ (midRetreat ? RETREAT_HYSTERESIS : 0.0);
+
+	if (distance > enemyReach)
+	{
+		debug("HOLD");
+		issueAttack(); // closes to max range (and no further), then waits out the cooldown
+		return;
+	}
+
+	// 4c. Retreat as far as the remaining cooldown allows; shorten the step if blocked.
+	const double fullStep = std::max(MIN_RETREAT_STEP, std::min(MAX_RETREAT_STEP, speed * framesToWait));
+	const double steps[] = { fullStep, fullStep * 0.6, MIN_RETREAT_STEP * 0.75 };
+
+	BWAPI::Position retreat = BWAPI::Positions::Invalid;
+	for (double s : steps)
+	{
+		retreat = findRetreatPosition(vulture, target, s);
+		if (retreat.isValid()) break;
+	}
+
+	if (!retreat.isValid())
+	{
+		debug("CORNERED");
+		issueAttack(); // nowhere to go: fight
+		return;
+	}
+
+	debug("RETREAT");
+	vulture->move(retreat);
 }
 
 // Storm dodging

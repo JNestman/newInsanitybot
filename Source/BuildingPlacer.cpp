@@ -8,8 +8,27 @@ namespace { auto & theMap = BWEM::Map::Instance(); }
 void BuildingPlacer::initialize()
 {
 	_reserveMap = std::vector< std::vector<bool> >(BWAPI::Broodwar->mapWidth(), std::vector<bool>(BWAPI::Broodwar->mapHeight(), false));
+	_constructionReservations = std::vector< std::vector<bool> >(BWAPI::Broodwar->mapWidth(), std::vector<bool>(BWAPI::Broodwar->mapHeight(), false));
 
 	reserveSpaceNearResources();
+}
+
+void BuildingPlacer::reserveConstructionSite(BWAPI::TilePosition position, BWAPI::UnitType building)
+{
+	for (int x = std::max(position.x, 0); x < std::min(position.x + building.tileWidth(), static_cast<int>(_constructionReservations.size())); ++x)
+	{
+		for (int y = std::max(position.y, 0); y < std::min(position.y + building.tileHeight(), static_cast<int>(_constructionReservations[x].size())); ++y)
+			_constructionReservations[x][y] = true;
+	}
+}
+
+void BuildingPlacer::releaseConstructionSite(BWAPI::TilePosition position, BWAPI::UnitType building)
+{
+	for (int x = std::max(position.x, 0); x < std::min(position.x + building.tileWidth(), static_cast<int>(_constructionReservations.size())); ++x)
+	{
+		for (int y = std::max(position.y, 0); y < std::min(position.y + building.tileHeight(), static_cast<int>(_constructionReservations[x].size())); ++y)
+			_constructionReservations[x][y] = false;
+	}
 }
 
 // Don't build in a position that blocks mining. Part of initialization.
@@ -199,7 +218,7 @@ bool BuildingPlacer::freeTile(int x, int y) const
 {
 	//UAB_ASSERT(BWAPI::TilePosition(x, y).isValid(), "bad tile");
 
-	if (!BWAPI::Broodwar->isBuildable(x, y, true) || _reserveMap[x][y])
+	if (!BWAPI::Broodwar->isBuildable(x, y, true) || _reserveMap[x][y] || _constructionReservations[x][y])
 	{
 		return false;
 	}
@@ -370,11 +389,7 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 			!_infoManager.isExpanding())
 		{
 			// Original main base bunker placement — untouched
-			bool bunkerSpotBuildable =
-				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()), true) &&
-				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 0), true) &&
-				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(0, 1), true) &&
-				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getMainBunkerPos()) + BWAPI::TilePosition(1, 1), true);
+			bool bunkerSpotBuildable = canBuildWithSpace(_infoManager.getMainBunkerPos(), BWAPI::UnitTypes::Terran_Bunker, 0);
 			desiredLocation = bunkerSpotBuildable
 				? _infoManager.getMainBunkerPos()
 				: getPositionNear(BWAPI::UnitTypes::Terran_Bunker,
@@ -384,8 +399,7 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 		else if (_infoManager.getOwnedBases().size() == 2)
 		{
 			// Original natural bunker placement — untouched
-			bool bunkerSpotBuildable =
-				BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getNatBunkerPos()), true);
+			bool bunkerSpotBuildable = canBuildWithSpace(_infoManager.getNatBunkerPos(), BWAPI::UnitTypes::Terran_Bunker, 0);
 			desiredLocation = bunkerSpotBuildable
 				? _infoManager.getNatBunkerPos()
 				: getPositionNear(BWAPI::UnitTypes::Terran_Bunker,
@@ -426,11 +440,7 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 
 				if (!alreadyCovered)
 				{
-					bool bunkerSpotBuildable =
-						BWAPI::Broodwar->isBuildable(candidatePos, true) &&
-						BWAPI::Broodwar->isBuildable(candidatePos + BWAPI::TilePosition(1, 0), true) &&
-						BWAPI::Broodwar->isBuildable(candidatePos + BWAPI::TilePosition(0, 1), true) &&
-						BWAPI::Broodwar->isBuildable(candidatePos + BWAPI::TilePosition(1, 1), true);
+					bool bunkerSpotBuildable = canBuildWithSpace(candidatePos, BWAPI::UnitTypes::Terran_Bunker, 0);
 					desiredLocation = bunkerSpotBuildable
 						? candidatePos
 						: getPositionNear(BWAPI::UnitTypes::Terran_Bunker, candidatePos,
@@ -443,8 +453,7 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 			// Fallback if somehow no outer base passed the coverage check
 			if (!foundPosition)
 			{
-				bool bunkerSpotBuildable =
-					BWAPI::Broodwar->isBuildable(BWAPI::TilePosition(_infoManager.getNatBunkerPos()), true);
+				bool bunkerSpotBuildable = canBuildWithSpace(_infoManager.getNatBunkerPos(), BWAPI::UnitTypes::Terran_Bunker, 0);
 				desiredLocation = bunkerSpotBuildable
 					? _infoManager.getNatBunkerPos()
 					: getPositionNear(BWAPI::UnitTypes::Terran_Bunker,
@@ -765,7 +774,10 @@ BWAPI::TilePosition BuildingPlacer::getDesiredLocation(BWAPI::UnitType building,
 
 	desiredLocation = getPositionNear(building, desiredLocation, _infoManager.isMech(_infoManager.getStrategy()));
 
-	return desiredLocation;
+	if (canBuildWithSpace(desiredLocation, building, 0))
+		return desiredLocation;
+
+	return getPositionNear(building, _infoManager.getMainPosition(), _infoManager.isMech(_infoManager.getStrategy()));
 }
 
 BWAPI::TilePosition BuildingPlacer::getSupplyLocation(BWAPI::UnitType building, InformationManager & _infoManager)
@@ -982,7 +994,10 @@ BWAPI::TilePosition BuildingPlacer::getSupplyLocation(BWAPI::UnitType building, 
 		}
 	}
 
-	return desiredLocation;
+	if (canBuildWithSpace(desiredLocation, building, 0))
+		return desiredLocation;
+
+	return getPositionNear(building, _infoManager.getMainPosition(), _infoManager.isMech(_infoManager.getStrategy()));
 }
 
 BWAPI::TilePosition insanitybot::BuildingPlacer::getTurretLocation(InformationManager & _infoManager)
@@ -1155,7 +1170,10 @@ BWAPI::TilePosition insanitybot::BuildingPlacer::getPositionNear(BWAPI::UnitType
 	if (isMech && !secondPass)
 		return getPositionNear(building, beginingPoint, false, true);
 	else
-		return BWAPI::Broodwar->getBuildLocation(building, beginingPoint);
+	{
+		BWAPI::TilePosition fallback = BWAPI::Broodwar->getBuildLocation(building, beginingPoint);
+		return canBuildWithSpace(fallback, building, 0) ? fallback : BWAPI::TilePosition(-1, -1);
+	}
 	//return getPositionNear(building, beginingPoint, "Bio");
 }
 
