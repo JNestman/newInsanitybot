@@ -7,7 +7,6 @@ namespace insanitybot
 	class GameCommander
 	{
 		UnitManager			_unitManager;
-		WorkerManager		_workerManager;
 		InformationManager	_informationManager;
 		CreationManager		_creationManager;
 

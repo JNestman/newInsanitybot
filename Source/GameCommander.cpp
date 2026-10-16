@@ -11,14 +11,14 @@ void GameCommander::initialize()
 {
 	_informationManager.initialize();
 	_creationManager.initialize();
-	_workerManager.initialize();
+	WorkerManager::Instance().initialize();
 }
 
 void GameCommander::update()
 {
 	_informationManager.update();
 
-	_workerManager.update(_informationManager);
+	WorkerManager::Instance().update(_informationManager);
 
 	_unitManager.update(_informationManager);
 

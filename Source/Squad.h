@@ -3,6 +3,7 @@
 
 #include "BWEM1.4.1/src/bwem.h"
 #include <BWAPI.h>
+#include <set>
 
 namespace insanitybot
 {
@@ -18,6 +19,8 @@ namespace insanitybot
 		std::list <BWAPI::Unit> _goliaths;
 
 		std::map <BWAPI::Unit, int> _bcs;
+
+		std::set<BWAPI::Unit> kitingVultures;
 
 		BWAPI::Unit nuker;
 		BWAPI::Unit dropship;

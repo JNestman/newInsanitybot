@@ -634,7 +634,7 @@ void UnitManager::update(InformationManager & _infoManager)
 			for (auto & squad : _allInSquad)
 			{
 				if ((!squad.isGoodToAttack() && _infoManager.getAggression()) ||
-					BWAPI::Broodwar->getFrameCount() >= 12000)
+					(BWAPI::Broodwar->getFrameCount() >= 12000 && !squad.isGoodToAttack()))
 				{
 					squad.setGoodToAttack(true);
 					squad.setHaveGathered(false);
@@ -643,6 +643,16 @@ void UnitManager::update(InformationManager & _infoManager)
 				if (squad.isGoodToAttack())
 				{
 					BWAPI::Position forwardPosition = getForwardPoint(_infoManager);
+					if (_infoManager.getEnemyBases().empty())
+					{
+						if (!_infoManager.getEnemyBuildingPositions().empty())
+							forwardPosition = _infoManager.getEnemyBuildingPositions().front();
+						else
+							forwardPosition = BWAPI::Position(nextUp);
+
+						if (forwardPosition == BWAPI::Position(0, 0))
+							forwardPosition = BWAPI::Position(BWAPI::Broodwar->mapWidth() * 16, BWAPI::Broodwar->mapHeight() * 16);
+					}
 
 					if (!squad.haveGatheredAtForwardPoint())
 					{
