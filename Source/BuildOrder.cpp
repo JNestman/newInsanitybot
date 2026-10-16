@@ -1613,6 +1613,7 @@ void insanitybot::BuildOrder::VultureRush(InformationManager & _infoManager)
 	int numMarines = _infoManager.getMarines().size();
 	int numTanks = _infoManager.getTanks().size();
 	int numSupplyDepots = _infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Supply_Depot);
+	int numRefineries = _infoManager.getNumTotalUnit(BWAPI::UnitTypes::Terran_Refinery);
 	bool hasAcademy = _infoManager.getAcademy().size();
 	bool hasScience = _infoManager.getScience().size();
 
@@ -1625,19 +1626,22 @@ void insanitybot::BuildOrder::VultureRush(InformationManager & _infoManager)
 
 	if (!_infoManager.hasInitialBarracks() && numWorkers >= 10 && numSupplyDepots > 0)
 	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Refinery);
-		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Refinery.mineralPrice());
 		_queue.push_back(BWAPI::UnitTypes::Terran_Barracks);
 		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Barracks.mineralPrice());
 		_infoManager.setInitialBarracks(true);
 	}
+	else if (numRaxTotal && !numRefineries && _infoManager.numGeyserBases() > 0)
+	{
+		_queue.push_back(BWAPI::UnitTypes::Terran_Refinery);
+		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Refinery.mineralPrice());
+	}
 	else if (numRaxFinished && !numFactoryTotal && _self->supplyUsed() >= 30)
 	{
-		_queue.push_back(BWAPI::UnitTypes::Terran_Supply_Depot);
-		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());
 		_queue.push_back(BWAPI::UnitTypes::Terran_Factory);
 		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Factory.mineralPrice());
 		_infoManager.setReservedGas(_infoManager.getReservedGas() + BWAPI::UnitTypes::Terran_Factory.gasPrice());
+		_queue.push_back(BWAPI::UnitTypes::Terran_Supply_Depot);
+		_infoManager.setReservedMinerals(_infoManager.getReservedMinerals() + BWAPI::UnitTypes::Terran_Supply_Depot.mineralPrice());
 	}
 	else if (numRaxFinished && numFactoryTotal < 2 && _self->supplyUsed() >= 34)
 	{
@@ -1664,7 +1668,7 @@ void insanitybot::BuildOrder::VultureRush(InformationManager & _infoManager)
 	if (_self->deadUnitCount(BWAPI::UnitTypes::Terran_Vulture) > 6 || numVultures > 14)
 	{
 		_infoManager.setStrategy("Mech");
-		_infoManager.setAggression(false);
+		_infoManager.setMarinesAtBuildSwitch(numMarines + BWAPI::Broodwar->self()->deadUnitCount(BWAPI::UnitTypes::Terran_Marine));
 		return;
 	}
 }

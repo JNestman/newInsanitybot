@@ -293,6 +293,7 @@ void CreationManager::update(InformationManager & _infoManager)
 	* Check our idle production and put them to work
 	*****************************************************/
 	int numMarines = _infoManager.getMarines().size();
+	int numMarinesAfterSwitch = (_infoManager.getMarinesAtBuildSwitch() + 4) - numMarines - _self->deadUnitCount(BWAPI::UnitTypes::Terran_Marine);
 	int numGhosts = _infoManager.getGhosts().size();
 	std::string ourStrat = "Nuke";
 	ourStrat = _infoManager.getStrategy();
@@ -380,7 +381,7 @@ void CreationManager::update(InformationManager & _infoManager)
 					}
 				}
 				else if (rax->isIdle() && _infoManager.getInitialStrategy() == "vultureRush" && 
-					_infoManager.getMarines().size() < 4)
+					numMarinesAfterSwitch > 0)
 				{
 					if (mineralsLeft - _infoManager.getReservedMinerals() >= BWAPI::UnitTypes::Terran_Marine.mineralPrice() &&
 						BWAPI::UnitTypes::Terran_Marine.supplyRequired() <= supplyLeft)

@@ -781,7 +781,7 @@ void WorkerManager::construct(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWA
 		return;
 
 	BWAPI::Unit worker = builder->first;
-	PendingConstruction construction = { structure, targetLocation, builder->second, -24 };
+	PendingConstruction construction = { structure, targetLocation, builder->second, -24, -1000, false };
 	_pendingConstructions[worker] = construction;
 	BuildingPlacer::Instance().reserveConstructionSite(targetLocation, structure);
 
@@ -801,16 +801,23 @@ void WorkerManager::construct(std::map<BWAPI::Unit, BWEM::Base *>& _workers, BWA
 			Colors::Blue);
 	}, nullptr, structure.buildTime() + 100);
 
-	worker->move(BWAPI::Position(targetLocation));
+	// Center of the full building footprint, in pixels
+	BWAPI::Position buildCenter = BWAPI::Position(targetLocation) +
+		BWAPI::Position(structure.tileWidth() * 16, structure.tileHeight() * 16);
+
+	worker->move(buildCenter);
 }
 
 void WorkerManager::updatePendingConstructions()
 {
-	//BWAPI::Broodwar->sendText("_pendingConstructions: %d", _pendingConstructions.size());
+	const int frame = BWAPI::Broodwar->getFrameCount();
+
 	for (auto it = _pendingConstructions.begin(); it != _pendingConstructions.end();)
 	{
 		BWAPI::Unit worker = it->first;
-		PendingConstruction & construction = it->second;
+		PendingConstruction& construction = it->second;
+
+		// Worker gone or already constructing: clean up
 		if (!worker || !worker->exists() || worker->isConstructing())
 		{
 			BuildingPlacer::Instance().releaseConstructionSite(construction.targetLocation, construction.structure);
@@ -818,6 +825,7 @@ void WorkerManager::updatePendingConstructions()
 			continue;
 		}
 
+		// Site already taken by one of our buildings: clean up
 		bool siteOccupied = false;
 		for (BWAPI::Unit building : BWAPI::Broodwar->self()->getUnits())
 		{
@@ -836,36 +844,75 @@ void WorkerManager::updatePendingConstructions()
 			continue;
 		}
 
+		// Is the whole footprint explored?
 		bool targetExplored = true;
-		for (int x = 0; x < construction.structure.tileWidth(); ++x)
+		for (int x = 0; x < construction.structure.tileWidth() && targetExplored; ++x)
 		{
 			for (int y = 0; y < construction.structure.tileHeight(); ++y)
 			{
 				if (!BWAPI::Broodwar->isExplored(construction.targetLocation.x + x, construction.targetLocation.y + y))
+				{
 					targetExplored = false;
+					break;
+				}
 			}
 		}
 
-		BWAPI::Position workerPosition = worker->getPosition();
-		BWAPI::Position firstTileCenter = BWAPI::Position(construction.targetLocation);
-		int left = firstTileCenter.x - 16;
-		int top = firstTileCenter.y - 16;
-		int right = left + construction.structure.tileWidth() * 32;
-		int bottom = top + construction.structure.tileHeight() * 32;
-		int distanceX = std::max(0, std::max(left - workerPosition.x, workerPosition.x - right));
-		int distanceY = std::max(0, std::max(top - workerPosition.y, workerPosition.y - bottom));
+		// Correct footprint in pixels (Position(TilePosition) is already the top-left corner)
+		const int left = construction.targetLocation.x * 32;
+		const int top = construction.targetLocation.y * 32;
+		const int right = left + construction.structure.tileWidth() * 32;
+		const int bottom = top + construction.structure.tileHeight() * 32;
+		const BWAPI::Position center((left + right) / 2, (top + bottom) / 2);
 
-		if (!targetExplored || distanceX * distanceX + distanceY * distanceY > 96 * 96)
+		const BWAPI::Position workerPosition = worker->getPosition();
+		const int distanceX = std::max(0, std::max(left - workerPosition.x, workerPosition.x - right));
+		const int distanceY = std::max(0, std::max(top - workerPosition.y, workerPosition.y - bottom));
+		const int distSq = distanceX * distanceX + distanceY * distanceY;
+
+		const bool canAfford =
+			BWAPI::Broodwar->self()->minerals() >= construction.structure.mineralPrice() &&
+			BWAPI::Broodwar->self()->gas() >= construction.structure.gasPrice();
+
+		// Hysteresis: enter "near" at 96px, only fall back to "far" past 160px
+		const int threshold = construction.arrived ? 160 : 96;
+		const bool far = !targetExplored || distSq > threshold * threshold;
+
+		if (far)
 		{
-			if (worker->isIdle() || !worker->isMoving() || worker->isGatheringMinerals() || worker->isGatheringGas())
-				worker->move(BWAPI::Position(construction.targetLocation));
+			construction.arrived = false;
+
+			// Throttled: never re-issue more than once per 24 frames
+			const bool needsOrder =
+				frame - construction.lastMoveFrame >= 24 &&
+				(worker->isIdle() || !worker->isMoving() || worker->isGatheringMinerals() || worker->isGatheringGas());
+
+			if (needsOrder)
+			{
+				construction.lastMoveFrame = frame;
+
+				if (targetExplored && canAfford)
+				{
+					// Let the engine path around obstacles
+					construction.lastBuildAttempt = frame;
+					worker->build(construction.structure, construction.targetLocation);
+				}
+				else
+				{
+					// Pre-position at a reachable point (footprint center), not the corner
+					worker->move(center);
+				}
+			}
+
 			++it;
 			continue;
 		}
 
+		construction.arrived = true;
+
+		// Near the site: nudge idle units off the footprint
 		bool movedBlocker = false;
-		BWAPI::Position center((left + right) / 2, (top + bottom) / 2);
-		BWAPI::Position clearancePositions[] = {
+		const BWAPI::Position clearancePositions[] = {
 			BWAPI::Position(left - 32, center.y),
 			BWAPI::Position(right + 32, center.y),
 			BWAPI::Position(center.x, top - 32),
@@ -886,8 +933,8 @@ void WorkerManager::updatePendingConstructions()
 				continue;
 			}
 
-			bool idleWorker = blocker->getType().isWorker() && blocker->isIdle();
-			bool idleCombatUnit = !blocker->getType().isWorker() && blocker->getType().canAttack() &&
+			const bool idleWorker = blocker->getType().isWorker() && blocker->isIdle();
+			const bool idleCombatUnit = !blocker->getType().isWorker() && blocker->getType().canAttack() &&
 				!blocker->isMoving() && !blocker->isAttacking() && !blocker->isUnderAttack();
 			if (!idleWorker && !idleCombatUnit)
 				continue;
@@ -902,12 +949,12 @@ void WorkerManager::updatePendingConstructions()
 
 			int nearestDistance = 999999;
 			BWAPI::Position clearancePosition;
-			for (BWAPI::Position candidate : clearancePositions)
+			for (const BWAPI::Position& candidate : clearancePositions)
 			{
 				if (!candidate.isValid() || !BWAPI::Broodwar->isWalkable(BWAPI::WalkPosition(candidate)))
 					continue;
 
-				int distance = blocker->getDistance(candidate);
+				const int distance = blocker->getDistance(candidate);
 				if (distance < nearestDistance)
 				{
 					nearestDistance = distance;
@@ -922,21 +969,13 @@ void WorkerManager::updatePendingConstructions()
 			}
 		}
 
-		if (movedBlocker)
+		if (movedBlocker || !canAfford || frame - construction.lastBuildAttempt < 24)
 		{
 			++it;
 			continue;
 		}
 
-		if (BWAPI::Broodwar->self()->minerals() < construction.structure.mineralPrice() ||
-			BWAPI::Broodwar->self()->gas() < construction.structure.gasPrice() ||
-			BWAPI::Broodwar->getFrameCount() - construction.lastBuildAttempt < 24)
-		{
-			++it;
-			continue;
-		}
-
-		construction.lastBuildAttempt = BWAPI::Broodwar->getFrameCount();
+		construction.lastBuildAttempt = frame;
 		worker->build(construction.structure, construction.targetLocation);
 		++it;
 	}

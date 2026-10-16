@@ -634,7 +634,7 @@ void UnitManager::update(InformationManager & _infoManager)
 			for (auto & squad : _allInSquad)
 			{
 				if ((!squad.isGoodToAttack() && _infoManager.getAggression()) ||
-					BWAPI::Broodwar->getFrameCount() >= 12000)
+					(BWAPI::Broodwar->getFrameCount() >= 12000 && !squad.isGoodToAttack()))
 				{
 					squad.setGoodToAttack(true);
 					squad.setHaveGathered(false);

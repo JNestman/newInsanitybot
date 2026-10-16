@@ -58,7 +58,7 @@ void insanitybotModule::onStart()
 
 			//Broodwar->sendText("glhf");
 
-			Broodwar->setLocalSpeed(0);
+			//Broodwar->setLocalSpeed(0);
 
 			commander.initialize();
 		}

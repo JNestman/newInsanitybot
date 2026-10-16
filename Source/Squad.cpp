@@ -1,6 +1,8 @@
 #include "Squad.h"
 #define _USE_MATH_DEFINES
 #include <math.h>
+#include <algorithm>
+#include <vector>
 
 namespace { auto & theMap = BWEM::Map::Instance(); }
 
@@ -86,6 +88,238 @@ insanitybot::Squad::Squad(BWAPI::Unit unit, bool isAllIn)
 	_stableEnemyPos = BWAPI::Position(0, 0);
 	_lastEnemyUpdateFrame = 0;
 }
+
+/*****************************************************************
+* SIEGE TANK Targeting Logic Section
+******************************************************************/
+namespace
+{
+	namespace E = BWAPI::UnitTypes::Enum;
+
+	// ---- Tunables ----------------------------------------------------
+	const double DAMAGE_SCALE = 0.1;   // value per point of (damage * weight)
+	const double KILL_BONUS = 5.0;   // extra value = weight * this when the shot kills
+	const double FRIENDLY_FIRE_MULT = 1.5;   // hurting our own units is worse than hurting theirs
+	const double SWITCH_THRESHOLD = 0.75;  // keep current target if it scores >= 75% of the best
+	const double TANK_THREAT_BONUS = 1.25;  // multiplier for enemies currently shooting our tanks
+	const double OVERKILL_PENALTY = 0.15;  // multiplier when other tanks already have it covered
+
+	struct EnemyInfo
+	{
+		BWAPI::Unit     unit;
+		BWAPI::Position pos;
+		BWAPI::UnitType type;
+		int             hpShield;
+		int             damage;     // full siege-tank hit on this unit
+		double          weight;
+		double          score = 0;
+		bool            scored = false;
+		int             pending = 0; // damage already earmarked by other tanks this call
+	};
+
+	struct FriendlyInfo
+	{
+		BWAPI::Position pos;
+		BWAPI::UnitType type;
+		int             hpShield;
+		int             damage;
+		double          weight;
+	};
+
+	struct TankTargetContext
+	{
+		std::vector<EnemyInfo>    enemies;
+		std::vector<FriendlyInfo> friendlies;
+	};
+
+	// How much we care about killing/damaging this type. Starting values; tune to taste.
+	double tankTargetPriority(BWAPI::UnitType t)
+	{
+		switch (t.getID())
+		{
+			// Protoss
+		case E::Protoss_High_Templar:           return 24;
+		case E::Protoss_Reaver:                 return 20;
+		case E::Protoss_Dark_Templar:           return 14;
+		case E::Protoss_Archon:                 return 10;
+		case E::Protoss_Dragoon:                return 10;
+		case E::Protoss_Photon_Cannon:          return 8;
+		case E::Protoss_Zealot:                 return 5;
+		case E::Protoss_Probe:                  return 3;
+			// Terran
+		case E::Terran_Siege_Tank_Siege_Mode:   return 20;
+		case E::Terran_Siege_Tank_Tank_Mode:    return 16;
+		case E::Terran_Ghost:                   return 12;
+		case E::Terran_Goliath:                 return 9;
+		case E::Terran_Bunker:                  return 8;
+		case E::Terran_Medic:                   return 8;
+		case E::Terran_Vulture:                 return 6;
+		case E::Terran_Marine:                  return 6;
+		case E::Terran_Firebat:                 return 6;
+		case E::Terran_SCV:                     return 3;
+		case E::Terran_Vulture_Spider_Mine:     return 2;
+			// Zerg
+		case E::Zerg_Defiler:                   return 24;
+		case E::Zerg_Lurker:                    return 20;
+		case E::Zerg_Hydralisk:                 return 9;
+		case E::Zerg_Ultralisk:                 return 8;
+		case E::Zerg_Sunken_Colony:             return 8;
+		case E::Zerg_Zergling:                  return 3;
+		case E::Zerg_Drone:                     return 3;
+		default: break;
+		}
+		if (t.isWorker())         return 3;
+		if (t.isSpellcaster())    return 12;
+		if (t.canAttack())        return 6;   // anything else that shoots
+		return 1;                             // plain buildings, etc.
+	}
+
+	bool tankCanTarget(BWAPI::Unit u)
+	{
+		if (!u || !u->exists() || !u->isVisible() || !u->isDetected()) return false;
+		if (u->isFlying() || u->isStasised() || u->isLoaded()) return false;
+		switch (u->getType().getID())
+		{
+		case E::Zerg_Larva: case E::Zerg_Egg: case E::Zerg_Lurker_Egg:
+		case E::Protoss_Interceptor: case E::Protoss_Scarab:
+			return false;
+		default: return true;
+		}
+	}
+
+	// Squared distance from point p to the bounding box of a unit centered at c.
+	int distSqToUnitBox(BWAPI::Position p, BWAPI::Position c, BWAPI::UnitType t)
+	{
+		int dx = std::max({ c.x - t.dimensionLeft() - p.x, p.x - (c.x + t.dimensionRight()), 0 });
+		int dy = std::max({ c.y - t.dimensionUp() - p.y, p.y - (c.y + t.dimensionDown()),  0 });
+		return dx * dx + dy * dy;
+	}
+
+	double splashFraction(int d2, const BWAPI::WeaponType& wt)
+	{
+		int in = wt.innerSplashRadius(), med = wt.medianSplashRadius(), out = wt.outerSplashRadius();
+		if (d2 <= in * in)  return 1.0;
+		if (d2 <= med * med) return 0.5;
+		if (d2 <= out * out) return 0.25;
+		return 0.0;
+	}
+
+	double valueOfHit(int dealt, int hpShield, double weight)
+	{
+		double v = dealt * weight * DAMAGE_SCALE;
+		if (dealt >= hpShield) v += weight * KILL_BONUS;
+		return v;
+	}
+
+	void buildTankTargetContext(TankTargetContext& ctx, const BWAPI::Unitset& enemyUnits)
+	{
+		BWAPI::Player self = BWAPI::Broodwar->self();
+		const BWAPI::UnitType siege = BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode;
+
+		for (auto u : enemyUnits)
+		{
+			if (!tankCanTarget(u) || !u->getPlayer()->isEnemy(self)) continue;
+			EnemyInfo e;
+			e.unit = u;
+			e.pos = u->getPosition();
+			e.type = u->getType();
+			e.hpShield = u->getHitPoints() + u->getShields();
+			e.damage = BWAPI::Broodwar->getDamageFrom(siege, e.type, self, u->getPlayer());
+			e.weight = tankTargetPriority(e.type);
+			ctx.enemies.push_back(e);
+		}
+
+		// Friendly ground units that would eat splash
+		for (auto u : self->getUnits())
+		{
+			if (!u->exists() || !u->isCompleted() || u->isFlying() || u->isLoaded()) continue;
+			if (u->getType().isBuilding()) continue;
+			FriendlyInfo f;
+			f.pos = u->getPosition();
+			f.type = u->getType();
+			f.hpShield = u->getHitPoints() + u->getShields();
+			f.damage = BWAPI::Broodwar->getDamageFrom(siege, f.type, self, self);
+			f.weight = tankTargetPriority(f.type);
+			ctx.friendlies.push_back(f);
+		}
+	}
+
+	// Value of firing a siege shot at 'a', including splash on enemies and friendlies.
+	void scoreTarget(EnemyInfo& a, const TankTargetContext& ctx, const BWAPI::WeaponType& wt)
+	{
+		const int reach = wt.outerSplashRadius() + 64;   // coarse reject margin (>= largest unit half-size)
+		double s = 0;
+
+		for (const auto& b : ctx.enemies)
+		{
+			if (std::abs(a.pos.x - b.pos.x) > reach || std::abs(a.pos.y - b.pos.y) > reach) continue;
+			double f = splashFraction(distSqToUnitBox(a.pos, b.pos, b.type), wt);
+			if (f <= 0) continue;
+			int dealt = std::min(int(b.damage * f), b.hpShield);
+			s += valueOfHit(dealt, b.hpShield, b.weight);
+		}
+		for (const auto& fr : ctx.friendlies)
+		{
+			if (std::abs(a.pos.x - fr.pos.x) > reach || std::abs(a.pos.y - fr.pos.y) > reach) continue;
+			double f = splashFraction(distSqToUnitBox(a.pos, fr.pos, fr.type), wt);
+			if (f <= 0) continue;
+			int dealt = std::min(int(fr.damage * f), fr.hpShield);
+			s -= valueOfHit(dealt, fr.hpShield, fr.weight) * FRIENDLY_FIRE_MULT;
+		}
+		a.score = s;
+		a.scored = true;
+	}
+
+	// Returns true if the tank has a valid target in range (and orders it to attack it).
+	bool tankPickTarget(BWAPI::Unit tank, TankTargetContext& ctx)
+	{
+		const BWAPI::WeaponType wt = BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode.groundWeapon();
+		const int maxR = wt.maxRange(), minR = wt.minRange();
+		BWAPI::Unit curTarget = tank->getOrderTarget();
+
+		EnemyInfo* best = nullptr;  double bestScore = 0;
+		EnemyInfo* cur = nullptr;  double curScore = 0;
+
+		for (auto& e : ctx.enemies)
+		{
+			int d = tank->getDistance(e.unit);
+			if (d > maxR || d < minR) continue;
+
+			if (!e.scored) scoreTarget(e, ctx, wt);
+			double s = e.score;
+			if (s <= 0) continue;                                  // net-negative (friendly fire) or worthless
+
+			if (e.pending >= e.hpShield) s *= OVERKILL_PENALTY;    // other tanks already have it
+
+			if (e.unit->isAttacking())                             // is it shooting our tanks?
+			{
+				BWAPI::Unit ot = e.unit->getOrderTarget();
+				if (ot && ot->getType() == BWAPI::UnitTypes::Terran_Siege_Tank_Siege_Mode) s *= TANK_THREAT_BONUS;
+			}
+
+			if (s > bestScore) { bestScore = s; best = &e; }
+			if (e.unit == curTarget) { curScore = s; cur = &e; }
+		}
+
+		if (!best) return false;
+
+		// Hysteresis: don't flip-flop between similar targets
+		if (cur && curScore >= bestScore * SWITCH_THRESHOLD) best = cur;
+
+		if (tank->getOrderTarget() != best->unit && !tank->isAttackFrame())
+			tank->attack(best->unit);
+
+		// Earmark damage if this tank is about to fire, so the next tank spreads out
+		if (tank->getGroundWeaponCooldown() <= BWAPI::Broodwar->getLatencyFrames())
+			best->pending += best->damage;
+
+		return true;
+	}
+}
+
+/*****************************************************************
+* End of SIEGE TANK Targeting Logic Section
+******************************************************************/
 
 BWAPI::Position insanitybot::Squad::getSquadPosition()
 {
@@ -1608,6 +1842,9 @@ void insanitybot::Squad::handleMedics(std::map<BWAPI::Unit, std::pair<BWAPI::Uni
 void insanitybot::Squad::handleTanks(BWAPI::Position attackPoint, BWAPI::Position forwardGather, bool haveGathered, std::list<BWAPI::Unit>& injured,
 	std::list<BWAPI::Bullet> _activePsiStorms, std::list<BWAPI::Unit> _activeScarabs, BWAPI::Unitset enemyUnits, BWAPI::Unit target, BWAPI::Position gatherPoint)
 {
+	TankTargetContext targetCtx;
+	bool targetCtxBuilt = false;
+
 	for (auto tank = _tanks.begin(); tank != _tanks.end();)
 	{
 		if (!tank->first || !tank->first->exists()) { tank = _tanks.erase(tank); continue; }
@@ -1624,6 +1861,22 @@ void insanitybot::Squad::handleTanks(BWAPI::Position attackPoint, BWAPI::Positio
 			}
 			++tank;
 			continue;
+		}
+
+		// --- Branch: Priority / splash-aware targeting for sieged tanks ---
+		if (tank->first->isSieged() && !enemyUnits.empty())
+		{
+			if (!targetCtxBuilt)
+			{
+				buildTankTargetContext(targetCtx, enemyUnits);
+				targetCtxBuilt = true;
+			}
+			if (tankPickTarget(tank->first, targetCtx))
+			{
+				tank->second = BWAPI::Broodwar->getFrameCount(); // we're fighting: reset unsiege timer
+				++tank;
+				continue;
+			}
 		}
 
 		// --- Branch: Gather point ---
@@ -1728,10 +1981,6 @@ void insanitybot::Squad::handleVultures(BWAPI::Position attackPoint, BWAPI::Posi
 {
 	BWAPI::Unit closestTankToTarget = getClosestTankToTarget(attackPoint, forwardGather, haveGathered);
 
-	auto tag = [&](BWAPI::Unit v, const char* s) {
-		BWAPI::Broodwar->drawTextMap(v->getPosition() + BWAPI::Position(-20, -56), "HV:%s", s);
-		};
-
 	// Once, before the for loop (not once per vulture):
 	for (auto it = kitingVultures.begin(); it != kitingVultures.end(); )
 		it = (!*it || !(*it)->exists()) ? kitingVultures.erase(it) : std::next(it);
@@ -1752,18 +2001,21 @@ void insanitybot::Squad::handleVultures(BWAPI::Position attackPoint, BWAPI::Posi
 		BWAPI::Unit closestEnemy = nullptr;
 		int closestDist = INT_MAX;
 
-		for (auto enemy : u->getUnitsInRadius(radius, BWAPI::Filter::IsEnemy))
+		if (_tanks.size() == 0)
 		{
-			if (!enemy || !enemy->exists() || !enemy->isVisible()) continue;
-
-			const BWAPI::UnitType t = enemy->getType();
-			if (t.isBuilding() || enemy->isFlying() || t.isInvincible()) continue;
-
-			const int d = u->getDistance(enemy);
-			if (d < closestDist)
+			for (auto enemy : u->getUnitsInRadius(radius, BWAPI::Filter::IsEnemy))
 			{
-				closestDist = d;
-				closestEnemy = enemy;
+				if (!enemy || !enemy->exists() || !enemy->isVisible() || enemy->isCloaked()) continue;
+
+				const BWAPI::UnitType t = enemy->getType();
+				if (t.isBuilding() || enemy->isFlying() || t.isInvincible()) continue;
+
+				const int d = u->getDistance(enemy);
+				if (d < closestDist)
+				{
+					closestDist = d;
+					closestEnemy = enemy;
+				}
 			}
 		}
 
@@ -1777,7 +2029,6 @@ void insanitybot::Squad::handleVultures(BWAPI::Position attackPoint, BWAPI::Posi
 				if (!closeEnough(vulture->first->getPosition(), target->getInitialPosition()))
 					vulture->first->move(target->getInitialPosition());
 			}
-			tag(u, "neutral-target");   // in the target != NULL branch
 			++vulture;
 			continue;
 		}
@@ -1792,7 +2043,6 @@ void insanitybot::Squad::handleVultures(BWAPI::Position attackPoint, BWAPI::Posi
 		}
 
 		kitingVultures.erase(u); // nothing valid nearby: fall through to your normal logic
-		tag(u, "no-enemy");
 
 		// --- Branch: Normal attack movement ---
 		// Mine planting state machine
@@ -1804,7 +2054,6 @@ void insanitybot::Squad::handleVultures(BWAPI::Position attackPoint, BWAPI::Posi
 				vulture->second = 1;
 			else
 			{
-				tag(u, "mine-state");
 				++vulture;
 				continue;
 			}
@@ -1824,7 +2073,6 @@ void insanitybot::Squad::handleVultures(BWAPI::Position attackPoint, BWAPI::Posi
 			if (!closeEnough(gatherPoint, vulture->first->getPosition()) && vulture->first->getGroundWeaponCooldown() == 0)
 				vulture->first->attack(gatherPoint);
 
-			tag(u, "gather");
 			++vulture;
 			continue;
 		}
@@ -1840,7 +2088,6 @@ void insanitybot::Squad::handleVultures(BWAPI::Position attackPoint, BWAPI::Posi
 			{
 				vulture->first->attack(closestTankToTarget->getPosition());
 			}
-			tag(u, "tank");
 		}
 		else
 		{
@@ -1851,7 +2098,6 @@ void insanitybot::Squad::handleVultures(BWAPI::Position attackPoint, BWAPI::Posi
 				if (!closeEnough(vulture->first->getPosition(), dest))
 					vulture->first->attack(dest);
 			}
-			tag(u, "attack-move");
 		}
 
 		++vulture;
@@ -2255,7 +2501,7 @@ void insanitybot::Squad::vultureKiteMicro(BWAPI::Unit vulture, BWAPI::Unit targe
 #endif
 		};
 	if (!vulture || !target || !vulture->exists() || !target->exists()) return;
-	if (target->isFlying() || !target->isVisible()) { tag("BAD-TARGET"); return; }
+	if (target->isFlying() || !target->isVisible() || target->isCloaked()) { tag("BAD-TARGET"); return; }
 	//if (vulture->isStartingAttack() || vulture->isAttackFrame()) { tag("SHOT"); return; }
 
 	// ---- 1. Gather real (upgrade-aware) numbers ------------------------------
@@ -2505,7 +2751,7 @@ bool insanitybot::Squad::shouldPlantMine(BWAPI::Unit vulture)
 	BWAPI::Unitset nearbyFriendlyStructures = BWAPI::Broodwar->getUnitsInRadius(vulture->getPosition(), tankMineOffset, 
 																				BWAPI::Filter::IsBuilding && BWAPI::Filter::IsOwned && !BWAPI::Filter::IsFlyingBuilding);
 
-	if (rand() % 100 == 0 && vulture->isMoving() && vulture->getSpiderMineCount() > 0 && nearbyFriendlyStructures.size() == 0)
+	if (rand() % 50 == 0 && vulture->isMoving() && vulture->getSpiderMineCount() > 0 && nearbyFriendlyStructures.size() == 0)
 	{
 		return true;
 	}

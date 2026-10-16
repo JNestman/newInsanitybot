@@ -69,8 +69,8 @@ void insanitybot::ReadWrite::writeCompactMatchData(const std::string& opponentNa
 {
 	// Carry forward existing history from the read directory
 	std::vector<MatchData> existing = readCompactMatchData();
-	//std::string filePath = "bwapi-data/write/" + opponentName + ".txt";
-	std::string filePath = "bwapi-data/read/" + opponentName + ".txt";
+	std::string filePath = "bwapi-data/write/" + opponentName + ".txt";
+	//std::string filePath = "bwapi-data/read/" + opponentName + ".txt";
 	std::ofstream outFile(filePath, std::ios::trunc);
 	if (outFile.is_open())
 	{

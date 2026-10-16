@@ -57,7 +57,7 @@ namespace insanitybot
 		std::vector<std::string>							_airStrat{ "BCMeme" };
 		std::vector<std::string>							_allIn{ "OneFacAllIn", "BBS", "VultureRush" };
 
-		std::vector<std::string>							_smallMainMaps{ "731138b5b844a4a0b4a4bb4e495969fd6659414c" };
+		std::vector<std::string>							_smallMainMaps{ "731138b5b844a4a0b4a4bb4e495969fd6659414c", "97944269ea55365d13c310f46c9337f5e873dc6c", "bde51d09a2ad733db9e5492354798045db2ced3e"};
 
 		std::list<BWAPI::UnitType>							_queue;
 
@@ -161,6 +161,7 @@ namespace insanitybot
 		bool												_targetDefended;
 		bool												_nukeDotDetected;
 		int													_waitASec;
+		int													_marinesAtBuildSwitch;
 
 		bool												_pauseGas;
 
@@ -291,6 +292,10 @@ namespace insanitybot
 		// BioDrops state accessor. Set to only "doom drop" once per game.
 		bool bioDropsPostDrop() { return _bioDropsSwitchToPostDrop; };
 		void setBioDropsPostDrop(bool postDrop) { _bioDropsSwitchToPostDrop = postDrop; };
+
+		// When we switch off of vultureRush, we want to know how many marines we had at that point so we can build more for bunker
+		int getMarinesAtBuildSwitch() { return _marinesAtBuildSwitch; };
+		void setMarinesAtBuildSwitch(int marines) { _marinesAtBuildSwitch = marines; };
 
 		bool enemyHasAir() { return _enemyHasAir; };
 		bool enemyHasDtLurker() { return _enemyHasDtLurker; };

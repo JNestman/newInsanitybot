@@ -788,21 +788,22 @@ BWAPI::TilePosition BuildingPlacer::getSupplyLocation(BWAPI::UnitType building, 
 	bool bottom = false;
 	bool left = false;
 	bool right = false;
+	std::string mapHash = BWAPI::Broodwar->mapHash();
 	
 	// Top of the map
 	if (_infoManager.getMainPosition().y < 30)
 	{
 		BWAPI::Position edge = BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x, 0);
 
-		if (BWAPI::Broodwar->mapHash() == "de2ada75fbc741cfa261ee467bf6416b10f9e301") // Python
+		if (mapHash == "de2ada75fbc741cfa261ee467bf6416b10f9e301") // Python
 		{
 			edge += BWAPI::Position(100, 0);
 		}
-		else if (BWAPI::Broodwar->mapHash() == "4e24f217d2fe4dbfa6799bc57f74d8dc939d425b") //Destination
+		else if (mapHash == "4e24f217d2fe4dbfa6799bc57f74d8dc939d425b") //Destination
 		{
 			edge += BWAPI::Position(-200, 0);
 		}
-		else if (BWAPI::Broodwar->mapHash() == "a220d93efdf05a439b83546a579953c63c863ca7") // Empire of the Sun
+		else if (mapHash == "a220d93efdf05a439b83546a579953c63c863ca7") // Empire of the Sun
 		{
 			if (_infoManager.getMainPosition().x < 30) // Top left
 			{
@@ -813,7 +814,7 @@ BWAPI::TilePosition BuildingPlacer::getSupplyLocation(BWAPI::UnitType building, 
 				edge += BWAPI::Position(100, 600);
 			}
 		}
-		else if (BWAPI::Broodwar->mapHash() == "a220d93efdf05a439b83546a579953c63c863ca7") // Empire of the Sun
+		else if (mapHash == "a220d93efdf05a439b83546a579953c63c863ca7") // Empire of the Sun
 		{
 			if (_infoManager.getMainPosition().x < 30) // Top left
 			{
@@ -824,13 +825,17 @@ BWAPI::TilePosition BuildingPlacer::getSupplyLocation(BWAPI::UnitType building, 
 				edge += BWAPI::Position(100, 200);
 			}
 		}
-		else if (BWAPI::Broodwar->mapHash() == "d2f5633cc4bb0fca13cd1250729d5530c82c7451") // Fighting Spirit
+		else if (mapHash == "d2f5633cc4bb0fca13cd1250729d5530c82c7451") // Fighting Spirit
 		{
 			if (_infoManager.getMainPosition().x > 30) // Top Right
 			{
 				edge += BWAPI::Position(100, 400);
 			}
 			
+		}
+		else if (mapHash == "444b805a88f971c6b2c5f8d2a467de3c1fb2f001") // (4)KatrinaSE_2.0
+		{
+			edge += BWAPI::Position(-400, 0);
 		}
 
 		desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(edge));
@@ -895,6 +900,10 @@ BWAPI::TilePosition BuildingPlacer::getSupplyLocation(BWAPI::UnitType building, 
 				edge = BWAPI::Position(BWAPI::Position(_infoManager.getMainPosition()).x - 100, BWAPI::Position(_infoManager.getMainPosition()).y - 100);
 			}
 		}
+		else if (mapHash == "444b805a88f971c6b2c5f8d2a467de3c1fb2f001") // (4)KatrinaSE_2.0
+		{
+			edge += BWAPI::Position(400, 0);
+		}
 
 		desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(edge));
 		bottom = true;
@@ -915,6 +924,10 @@ BWAPI::TilePosition BuildingPlacer::getSupplyLocation(BWAPI::UnitType building, 
 		else if (BWAPI::Broodwar->mapHash() == "c8386b87051f6773f6b2681b0e8318244aa086a6") // Neo Moon Glaive
 		{
 			edge += BWAPI::Position(0, -200);
+		}
+		else if (mapHash == "444b805a88f971c6b2c5f8d2a467de3c1fb2f001") // (4)KatrinaSE_2.0
+		{
+			edge += BWAPI::Position(0, 400);
 		}
 
 		desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(edge));
@@ -940,6 +953,10 @@ BWAPI::TilePosition BuildingPlacer::getSupplyLocation(BWAPI::UnitType building, 
 		else if (BWAPI::Broodwar->mapHash() == "0409ca0d7fe0c7f4083a70996a8f28f664d2fe37") // Icarus
 		{
 			edge += BWAPI::Position(0, -200);
+		}
+		else if (mapHash == "444b805a88f971c6b2c5f8d2a467de3c1fb2f001") // (4)KatrinaSE_2.0
+		{
+			edge += BWAPI::Position(0, -400);
 		}
 
 		desiredLocation = BWAPI::Broodwar->getBuildLocation(building, BWAPI::TilePosition(edge));

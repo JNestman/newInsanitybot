@@ -48,8 +48,7 @@ insanitybot::InformationManager::InformationManager()
 	}
 
 	_readWrite->initialize();
-	//_strategy = _readWrite->getChosenBuildOrder(_mainNotTilePos);
-	_strategy = "VultureRush";
+	_strategy = _readWrite->getChosenBuildOrder(_mainNotTilePos);
 	_buildOrder->initialize(_strategy);
 	_ourInitialStrategy = _strategy;
 
@@ -100,6 +99,7 @@ void InformationManager::initialize()
 	_initialBarracks = false;
 	_reservedMinerals = 0;
 	_reservedGas = 0;
+	_marinesAtBuildSwitch = 0;
 
 	BWAPI::Position main;
 	for (auto & u : BWAPI::Broodwar->self()->getUnits())
@@ -229,6 +229,48 @@ void InformationManager::initialize()
 		if (_mainPosition.y > mapH * .70 && _mainPosition.x > mapW * .50)
 			_naturalChoke = BWAPI::Position(natLoc.x, natLoc.y - 150);
 	}
+	else if (mapHash == "97944269ea55365d13c310f46c9337f5e873dc6c") // (2)crossing_Fields_1.34
+	{
+		if (_mainPosition.x > mapW * .50)
+			_naturalChoke = BWAPI::Position(_mainPosition) + BWAPI::Position(150, -600);
+		else
+			_naturalChoke = BWAPI::Position(_mainPosition) + BWAPI::Position(-75, 600);
+	}
+	else if (mapHash == "b20fc580f0743f61d0d4ef1a56054505a5c63217") // (3)NeoAztec_2.0_KeSPA
+	{
+		if (_mainPosition.y > mapH * .70 && _mainPosition.x > mapW * .50) // Bottom Right
+			_naturalChoke = BWAPI::Position(natLoc.x - 50, natLoc.y - 200);
+	}
+	else if (mapHash == "bde51d09a2ad733db9e5492354798045db2ced3e") // (4)ColosseumII_2.0
+	{
+		if (_mainPosition.y > mapH * .70 && _mainPosition.x > mapW * .50) // Bottom Right
+			_naturalChoke = BWAPI::Position(_mainPosition) + BWAPI::Position(-400, -400);
+		else if (_mainPosition.y < mapH * .30 && _mainPosition.x < mapW * .50) // Top Left
+			_naturalChoke = BWAPI::Position(_mainPosition) + BWAPI::Position(400, 400);
+		else if (_mainPosition.y < mapH * .30 && _mainPosition.x > mapW * .50) // Top Right
+			_naturalChoke = BWAPI::Position(_mainPosition) + BWAPI::Position(-200, -200);
+	}
+	else if (mapHash == "2acb8e8cc2ec9b0911a73f2f29dcce424862dddd") // (4)GodsGarden_1.0_KeSPA
+	{
+		if (_mainPosition.y < mapH * .30 && _mainPosition.x > mapW * .50) // Top Right
+			_naturalChoke = BWAPI::Position(_mainPosition) + BWAPI::Position(-450, -450);
+	}
+	else if (mapHash == "2f69eaa1a73bb743934d55e7ea12186fe340e656") // (4)JudgmentDay_1.2
+	{
+		if (_mainPosition.x > mapW * .50) // Right side of the map
+			_naturalChoke += BWAPI::Position(-800, 0);
+		else
+			_naturalChoke += BWAPI::Position(800, 0);
+
+		if (_mainPosition.y > mapH * .50) // Bottom half of the map
+			_naturalChoke += BWAPI::Position(0, 200);
+		else
+			_naturalChoke += BWAPI::Position(0, -200);
+
+		if (_mainPosition.x < mapW * .50 && _mainPosition.y < mapH * .50) // Top Left
+			_naturalChoke = BWAPI::Position(natLoc.x + 900, natLoc.y - 200);
+
+	}
 
 	// Main choke (closest choke on path main->nat)
 	shortest = 999999; distance = 0;
@@ -245,6 +287,39 @@ void InformationManager::initialize()
 	if (mapHash == "c8386b87051f6773f6b2681b0e8318244aa086a6") // Neo Moon Glaive
 	{
 		if (_mainPosition.y < mapH / 2) _mainChoke += BWAPI::Position(200, 0);
+	}
+	else if (mapHash == "97944269ea55365d13c310f46c9337f5e873dc6c") // (2)crossing_Fields_1.34
+	{
+		_mainChoke = _naturalChoke;
+	}
+	else if (mapHash == "bde51d09a2ad733db9e5492354798045db2ced3e") // (4)ColosseumII_2.0
+	{
+		_mainChoke = _naturalChoke;
+	}
+	else if (mapHash == "2acb8e8cc2ec9b0911a73f2f29dcce424862dddd") // (4)GodsGarden_1.0_KeSPA
+	{
+		if (_mainPosition.y < mapH * .30 && _mainPosition.x > mapW * .50) // Top Right
+			_mainChoke = _naturalChoke;
+	}
+	else if (mapHash == "2f69eaa1a73bb743934d55e7ea12186fe340e656") // (4)JudgmentDay_1.2
+	{
+		if (_mainPosition.x < mapW * .50 && _mainPosition.y < mapH * .50) // Top Left
+			_mainChoke += BWAPI::Position(0, -300);
+		else if (_mainPosition.x > mapW * .50 && _mainPosition.y > mapH * .50) // Bottom Right
+			_mainChoke += BWAPI::Position(0, 300);
+
+	}
+	else if (mapHash == "444b805a88f971c6b2c5f8d2a467de3c1fb2f001") // (4)KatrinaSE_2.0
+	{
+		if (_mainPosition.y < mapH * .30) // Top
+			_mainChoke = BWAPI::Position(_mainPosition) + BWAPI::Position(600, 200);
+		else if (_mainPosition.y > mapH * .70) // Bottom
+			_mainChoke = BWAPI::Position(_mainPosition) + BWAPI::Position(-600, -200);
+		else if (_mainPosition.x < mapW * .30) // Left
+			_mainChoke = BWAPI::Position(_mainPosition) + BWAPI::Position(200, -400);
+		else if (_mainPosition.x > mapW * .70) // Right
+			_mainChoke = BWAPI::Position(_mainPosition) + BWAPI::Position(-100, 600);
+
 	}
 
 	// Small mineral tracking
@@ -1444,7 +1519,8 @@ int InformationManager::getNumTotalUnit(BWAPI::UnitType type)
 int InformationManager::numGeyserBases()
 {
 	int count = 0;
-	for (auto & base : _ownedBases) count += base.second->baseHasGeyser();
+	for (auto & base : _ownedBases) 
+		if (base.second->baseHasGeyser() && base.second->getBaseCommandCenter() && base.second->getBaseCommandCenter()->exists() && base.second->getBaseCommandCenter()->isCompleted()) ++count;
 	return count;
 }
 

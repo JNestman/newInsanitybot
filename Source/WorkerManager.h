@@ -20,6 +20,8 @@ namespace insanitybot
 			BWAPI::TilePosition targetLocation;
 			BWEM::Base *base;
 			int lastBuildAttempt;
+			int  lastMoveFrame;
+			bool arrived;
 		};
 
 		int _lastCheckSupply;
